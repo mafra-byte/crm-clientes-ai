@@ -1,0 +1,76 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model MlAccount {
+  id           String   @id @default(cuid())
+  mlUserId     String   @unique
+  nickname     String
+  email        String?
+  accessToken  String
+  refreshToken String
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  orders       Order[]
+  clients      Client[]
+}
+
+model Client {
+  id             String    @id @default(cuid())
+  mlBuyerId      String?   @unique
+  name           String
+  email          String?
+  phone          String?
+  nickname       String?
+  notes          String?
+  source         String    @default("manual")
+  totalOrders    Int       @default(0)
+  totalSpent     Float     @default(0)
+  lastOrderAt    DateTime?
+  mlAccountId    String?
+  mlAccount      MlAccount? @relation(fields: [mlAccountId], references: [id])
+  orders         Order[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Order {
+  id            String    @id @default(cuid())
+  mlOrderId     String    @unique
+  status        String
+  totalAmount   Float
+  currencyId    String    @default("BRL")
+  dateCreated   DateTime
+  dateClosed    DateTime?
+  itemTitle     String?
+  itemId        String?
+  quantity      Int       @default(1)
+  rawJson       String?
+  clientId      String?
+  client        Client?   @relation(fields: [clientId], references: [id])
+  mlAccountId   String
+  mlAccount     MlAccount @relation(fields: [mlAccountId], references: [id])
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model SyncLog {
+  id        String   @id @default(cuid())
+  type      String
+  status    String
+  message   String?
+  details   String?
+  createdAt DateTime @default(now())
+}
+
+model OAuthState {
+  id        String   @id @default(cuid())
+  state     String   @unique
+  createdAt DateTime @default(now())
+}
