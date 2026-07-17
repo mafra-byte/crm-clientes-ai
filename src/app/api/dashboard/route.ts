@@ -1,0 +1,39 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/db";
+import { getValidMlAccount } from "@/lib/ml/sync";
+
+export async function GET() {
+  const [clients, orders, revenue, account, recentSync] = await Promise.all([
+    prisma.client.count(),
+    prisma.order.count(),
+    prisma.order.aggregate({ _sum: { totalAmount: true } }),
+    getValidMlAccount().catch(() => null),
+    prisma.syncLog.findFirst({ orderBy: { createdAt: "desc" } }),
+  ]);
+
+  const recentClients = await prisma.client.findMany({
+    orderBy: { updatedAt: "desc" },
+    take: 5,
+  });
+
+  const recentOrders = await prisma.order.findMany({
+    orderBy: { dateCreated: "desc" },
+    take: 5,
+    include: {
+      client: { select: { id: true, name: true } },
+    },
+  });
+
+  return NextResponse.json({
+    stats: {
+      clients,
+      orders,
+      revenue: revenue._sum.totalAmount ?? 0,
+      connected: Boolean(account),
+      sellerNickname: account?.nickname ?? null,
+    },
+    recentClients,
+    recentOrders,
+    recentSync,
+  });
+}
