@@ -69,16 +69,19 @@ Next.js 15 · Prisma · SQLite · TypeScript · Tailwind CSS
 
 Ambiente de produção neste servidor Contabo:
 
-- App: `/var/www/protheus`
-- Processo: PM2 `protheus` (porta `3010`)
-- URL: https://protheus.ccskf.net
-- Nginx: `/etc/nginx/sites-available/protheus`
+- App CRM: `/var/www/protheus` · PM2 `protheus` (porta `3010`)
+- ERP Protheus 12.1.2410: `/totvs/protheus_2410` · systemd `protheus-dbaccess` + `protheus-appserver`
+- URL CRM: https://protheus.ccskf.net
+- WebApp ERP: https://protheus.ccskf.net/webapp/
+- REST ERP: https://protheus.ccskf.net/rest/
+- Empresa padrão: **99** / filial **01**
+
+Guia completo do ERP: [`docs/PROTHEUS_EMPRESA99.md`](docs/PROTHEUS_EMPRESA99.md)
 
 ```bash
-# no servidor, após atualizar o código em /var/www/protheus
-cd /var/www/protheus
-npm install
-npx prisma migrate deploy
-npm run build
-pm2 restart protheus
+# atualizar CRM
+cd /var/www/protheus && npm install && npx prisma migrate deploy && npm run build && pm2 restart protheus
+
+# reiniciar ERP
+systemctl restart protheus-dbaccess protheus-appserver
 ```
