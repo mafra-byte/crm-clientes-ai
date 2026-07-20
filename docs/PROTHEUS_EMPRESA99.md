@@ -22,9 +22,20 @@ Portas ERP/License bloqueadas de fora via iptables; acesso público só via ngin
 ## URLs públicas
 
 - CRM: https://protheus.ccskf.net
-- WebApp: https://protheus.ccskf.net/webapp/
+- Atalho: https://protheus.ccskf.net/abrir-protheus.html
+- WebApp (Configurador): https://protheus.ccskf.net/webapp/?StartProg=SIGACFG&Env=ENVIRONMENT
 - REST (login): https://protheus.ccskf.net/rest/
 - License monitor (localhost): http://127.0.0.1:8020/
+
+### Nginx (HTTPS / acesso remoto)
+
+O WebApp atrás do nginx HTTPS precisa de três ajustes (só no site `protheus.ccskf.net`):
+
+1. **CSP `upgrade-insecure-requests`** em `/webapp/` — o AppServer manda o iframe TFACE como `http://host:443/app-root/...`; sem isso o Chrome/Safari bloqueia (tela branca / Mixed Content).
+2. **`proxy_set_header Origin ""`** em `/app-root/` — com header `Origin` (scripts `type=module`) o AppServer responde **401** nos JS do login.
+3. **WebSocket**: `proxy_http_version 1.1` + `Upgrade` / `Connection $connection_upgrade` e timeouts longos em `/webapp/`.
+
+No hotel/Wi‑Fi instável: preferir **4G/hotspot**, Chrome anônimo, e esperar o primeiro **Entrar** (pode ficar em “Carregando...” vários minutos enquanto cria o dicionário `SX*990` da empresa 99).
 
 ## Banco
 
