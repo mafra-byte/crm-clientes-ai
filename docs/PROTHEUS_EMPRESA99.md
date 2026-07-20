@@ -29,8 +29,31 @@ Portas ERP/License bloqueadas de fora via iptables; acesso público só via ngin
 ## Banco
 
 - PostgreSQL: database/user `protheus` / senha `Protheus.123`
+- Encoding `LATIN1`, collation/ctype `C`
 - ODBC DSN isolado: `/totvs/protheus_2410/odbc/` (`ODBCINI` / `ODBCSYSINI`)
+- Driver: PostgreSQL **ANSI** (`psqlodbca.so`) + `ODBC30=1` no `dbaccess.ini`
 - ClientLibrary: `/usr/lib/x86_64-linux-gnu/libodbc.so.2`
+
+### TOP_FIELD (crítico)
+
+O DBAccess lê `FIELD_PREC` / `FIELD_DEC` com `FieldAsPChar`. Se essas colunas forem `smallint`, o thread cai com:
+
+`Invalid Null ContentPrt on FieldAsPChar(4)` → `NO CONNECTION` no `FWTBLCREATE`.
+
+Schema correto (script no servidor: `/totvs/protheus_2410/tools/ensure_top_field.sql`):
+
+```sql
+CREATE TABLE public.TOP_FIELD (
+  FIELD_TABLE varchar(50) NOT NULL,
+  FIELD_NAME  varchar(50) NOT NULL,
+  FIELD_TYPE  char(1) NOT NULL,
+  FIELD_PREC  varchar(4) NOT NULL,
+  FIELD_DEC   varchar(4) NOT NULL
+);
+CREATE UNIQUE INDEX TOP_FIELDI ON public.TOP_FIELD (FIELD_TABLE, FIELD_NAME);
+```
+
+Deixar o DBAccess criar as demais `TOP_*` no `InitialCheckUp`. Não inventar stubs `SYS_*`.
 
 ## Paths
 
@@ -40,9 +63,7 @@ Portas ERP/License bloqueadas de fora via iptables; acesso público só via ngin
 - RPO: `/totvs/protheus_2410/protheus/apo/tttm120.rpo`
 - License Server: `/totvs/totvslicensevirtual/`
 
-## Empresa 99 — estado atual
-
-Já no banco (`sys_company`):
+## Empresa 99 — estado
 
 | Campo | Valor |
 |-------|-------|
@@ -51,25 +72,38 @@ Já no banco (`sys_company`):
 | Nome empresa | `TESTE` |
 | Nome filial | `MATRIZ` |
 | SpecialKey AppServer | `EMPRESA99` |
+| StartSysInDB | `1` |
 
-License Server Virtual instalado e AppServer apontando `[LICENSECLIENT] 127.0.0.1:5555`. Para empresa 99 de teste **não é necessário TOTVS ID**.
+License Server Virtual em `[LICENSECLIENT] 127.0.0.1:5555`. Para empresa 99 de teste **não é necessário TOTVS ID**.
 
-### Pendente (login / Admin)
+## Login Admin (PO UI / Protheus Séries)
 
-O WebApp abre a tela de login TFace, mas o login Admin ainda falha porque as tabelas `SYS_USR_*` / `SYS_GRP_*` foram criadas como stubs (existência) e o OpenTable do framework exige índices/metadados TOP nativos.
+Na interface nova (PO UI), o botão **Entrar** só habilita com senha preenchida.
 
-Próximo passo manual ou automatizado:
+1. Primeiro acesso: usuário `Admin`, senha **em branco** → digitar um **espaço** no campo senha (como nos vídeos Protheus Séries / TDN PO UI).
+2. O sistema abre **Alterar senha** (usuário `Administrador`).
+3. Senha atual: espaço; nova senha: a desejada (sandbox: `Protheus.123`).
+4. Em **session-settings**: Grupo `99` / Filial `01` / Ambiente Configurador → **Entrar**.
 
-1. Abrir https://protheus.ccskf.net/webapp/ → `SIGACFG` / `ENVIRONMENT`
-2. Se o login falhar com “Index not found” em `SYS_USR_GROUPS`, dropar as stubs `sys_usr_*` / `sys_grp_*` (exceto `sys_usr`, `sys_usr_paneis`, `sys_grp_paneis`) e deixar o SIGACFG recriar via **Ambiente → Base de Dados → Atualizar** numa sessão que já tenha Admin — ou recriar Admin pelo fluxo oficial TOTVS (reset com token se necessário)
-3. Criar usuário **Admin** + senha e gravar no `.env` do CRM (`PROTHEUS_PASSWORD`)
-4. Testar sync em https://protheus.ccskf.net → Protheus
+Credenciais CRM (`.env` em `/var/www/protheus`):
 
-Scripts de automação no servidor: `/totvs/protheus_2410/tools/` (`sigacfg*.js`).
+- `PROTHEUS_USERNAME=Admin`
+- `PROTHEUS_PASSWORD=Protheus.123`
+- `PROTHEUS_EMPRESA=99`
+- `PROTHEUS_FILIAL=01`
 
-## Referências usadas
+## Próximos passos opcionais
 
-- TDN: Instalador Protheus Linux 12.1.2410
-- TDN: License Server Virtual (silent `install 2` / IzPack `-options-auto`)
-- Central TOTVS: base de teste grupo empresas 99 (`01 - MATRIZ`)
-- REST 2.0: seções `HTTPV11`, `HTTPREST`, `HTTPURI`, `HTTPJOB`, `ONSTART`
+1. Em SIGACFG: Ambiente → Base de Dados → Atualizar (dicionário SX completo, se ainda faltar).
+2. Configurar REST OAuth / rotas de clientes e pedidos conforme APIs disponíveis.
+3. Testar sync no CRM: https://protheus.ccskf.net → Protheus.
+
+Scripts de automação no servidor: `/totvs/protheus_2410/tools/`.
+
+## Referências
+
+- TDN: Nova interface PO UI (senha em branco = digitar espaço)
+- TDN: StartSysInDB / dicionário no banco
+- TDN: ODBC PostgreSQL Linux (ANSI + ByteaAsLongVarBinary etc.)
+- Central TOTVS: base de teste grupo 99 (`01 - MATRIZ`)
+- Protheus Séries (YouTube): primeiro login Admin + espaço

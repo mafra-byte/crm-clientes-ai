@@ -9,7 +9,7 @@ O Protheus **não deve alterar** Casamax, Davi nem demais sistemas do servidor.
 | ERP | `/totvs/protheus_2410/**` |
 | CRM | `/var/www/protheus/**` |
 | ODBC | `/totvs/protheus_2410/odbc/**` (`ODBCINI`) |
-| systemd | `protheus-dbaccess`, `protheus-appserver`, `protheus-sandbox-firewall` |
+| systemd | `protheus-dbaccess`, `protheus-appserver`, `protheus-license`, `protheus-sandbox-firewall` |
 | nginx | somente site `protheus.ccskf.net` |
 | PostgreSQL | somente database/user `protheus` |
 | PM2 | somente processo `protheus` |
