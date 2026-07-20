@@ -64,3 +64,21 @@ PROTHEUS_ORDERS_PATH=/pedidos
 ## Stack
 
 Next.js 15 · Prisma · SQLite · TypeScript · Tailwind CSS
+
+## Deploy (servidor)
+
+Ambiente de produção neste servidor Contabo:
+
+- App: `/var/www/protheus`
+- Processo: PM2 `protheus` (porta `3010`)
+- URL: https://protheus.ccskf.net
+- Nginx: `/etc/nginx/sites-available/protheus`
+
+```bash
+# no servidor, após atualizar o código em /var/www/protheus
+cd /var/www/protheus
+npm install
+npx prisma migrate deploy
+npm run build
+pm2 restart protheus
+```
