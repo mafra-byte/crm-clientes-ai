@@ -105,9 +105,10 @@ Credenciais CRM (`.env` em `/var/www/protheus`):
 
 ## Próximos passos opcionais
 
-1. Em SIGACFG: Ambiente → Base de Dados → Atualizar (dicionário SX completo, se ainda faltar).
-2. Configurar REST OAuth / rotas de clientes e pedidos conforme APIs disponíveis.
-3. Testar sync no CRM: https://protheus.ccskf.net → Protheus.
+1. No **primeiro** Entrar após bootstrap, aguardar a carga do dicionário (`SX3990` etc.) — a UI fica em “Carregando...”; não fechar a aba.
+2. Em SIGACFG: Ambiente → Base de Dados → Atualizar (se ainda faltar algo no SX).
+3. Configurar REST OAuth / rotas de clientes e pedidos conforme APIs disponíveis.
+4. Testar sync no CRM: https://protheus.ccskf.net → Protheus.
 
 Scripts de automação no servidor: `/totvs/protheus_2410/tools/`.
 
