@@ -1,0 +1,77 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model ProtheusConnection {
+  id           String   @id @default(cuid())
+  label        String   @default("Produção")
+  baseUrl      String
+  empresa      String
+  filial       String
+  username     String
+  accessToken  String?
+  refreshToken String?
+  tokenType    String?  @default("Bearer")
+  expiresAt    DateTime?
+  lastTestAt   DateTime?
+  lastTestOk   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  clients      Client[]
+  orders       Order[]
+}
+
+model Client {
+  id             String              @id @default(cuid())
+  protheusCode   String?             @unique
+  name           String
+  email          String?
+  phone          String?
+  document       String?
+  store          String?
+  notes          String?
+  source         String              @default("manual")
+  totalOrders    Int                 @default(0)
+  totalSpent     Float               @default(0)
+  lastOrderAt    DateTime?
+  connectionId   String?
+  connection     ProtheusConnection? @relation(fields: [connectionId], references: [id])
+  orders         Order[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+}
+
+model Order {
+  id            String              @id @default(cuid())
+  protheusId    String              @unique
+  number        String?
+  status        String
+  totalAmount   Float
+  currencyId    String              @default("BRL")
+  dateCreated   DateTime
+  dateClosed    DateTime?
+  itemTitle     String?
+  itemId        String?
+  quantity      Int                 @default(1)
+  rawJson       String?
+  clientId      String?
+  client        Client?             @relation(fields: [clientId], references: [id])
+  connectionId  String
+  connection    ProtheusConnection  @relation(fields: [connectionId], references: [id])
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+}
+
+model SyncLog {
+  id        String   @id @default(cuid())
+  type      String
+  status    String
+  message   String?
+  details   String?
+  createdAt DateTime @default(now())
+}
