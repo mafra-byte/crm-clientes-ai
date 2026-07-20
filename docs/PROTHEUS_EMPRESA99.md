@@ -66,6 +66,16 @@ CREATE UNIQUE INDEX TOP_FIELDI ON public.TOP_FIELD (FIELD_TABLE, FIELD_NAME);
 
 Deixar o DBAccess criar as demais `TOP_*` no `InitialCheckUp`. Não inventar stubs `SYS_*`.
 
+### Tabela física vs dicionário (SX2/SX3)
+
+Comportamento padrão do Protheus (confirmado na Central TOTVS / consultores):
+
+1. O **Configurador grava só o dicionário** (`SX2`, `SX3`, `SIX`).
+2. A **tabela física no SQL só nasce no primeiro acesso** (`DbSelectArea` / `CheckFile` / `FWTBLCREATE`).
+3. Se a estrutura está ok no SX2/SX3 mas a física está inconsistente: **dropar a tabela no banco** e reabrir a rotina — o Protheus **recria do zero** com owner/TOP corretos.
+
+**Não** criar `SX*990` “na mão” (nem `IDENTITY`, nem `TOP_FIELD` inventado para campos `C`). Isso gerou `permission denied` / `invalid conversion` na SX5. Fluxo correto: garantir SX2+SX3(+SIX) → `DROP TABLE` da física se estiver errada → deixar o SIGACFG recriar.
+
 ## Paths
 
 - AppServer: `/totvs/protheus_2410/protheus/bin/appserver`
