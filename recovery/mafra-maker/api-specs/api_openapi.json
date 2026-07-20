@@ -1,0 +1,182 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Mafra Maker API",
+    "version": "1.0.0",
+    "description": "API First do Mafra Maker (CCSKF). Painel e IAs consomem as mesmas rotas. Regras de negócio e auditoria ficam na API."
+  },
+  "servers": [
+    { "url": "/maker/api" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "Token",
+        "description": "Use token admin (painel) ou token ia (ChatGPT). Tokens separados, hash no banco, revogáveis."
+      }
+    },
+    "schemas": {
+      "Cliente": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "name": { "type": "string" },
+          "phone": { "type": "string", "nullable": true },
+          "email": { "type": "string", "nullable": true },
+          "notes": { "type": "string", "nullable": true }
+        }
+      },
+      "Pedido": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "customer_id": { "type": "integer" },
+          "title": { "type": "string" },
+          "quantity": { "type": "integer" },
+          "status": { "type": "string" },
+          "sale_price": { "type": "number" },
+          "due_date": { "type": "string", "nullable": true },
+          "itens": { "type": "array", "items": { "$ref": "#/components/schemas/ItemPedido" } }
+        }
+      },
+      "ItemPedido": {
+        "type": "object",
+        "properties": {
+          "produto": { "type": "string" },
+          "quantidade": { "type": "integer" },
+          "valor_unitario": { "type": "number" }
+        }
+      }
+    }
+  },
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "security": [],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/clientes": {
+      "get": {
+        "summary": "Lista clientes",
+        "parameters": [
+          { "name": "q", "in": "query", "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Lista de clientes" } }
+      },
+      "post": {
+        "summary": "Cria cliente",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["nome"],
+                "properties": {
+                  "nome": { "type": "string" },
+                  "telefone": { "type": "string" },
+                  "email": { "type": "string" },
+                  "observacoes": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "Criado" } }
+      }
+    },
+    "/clientes/{id}": {
+      "get": {
+        "summary": "Obtém cliente",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "Cliente" } }
+      },
+      "put": {
+        "summary": "Atualiza cliente",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "Atualizado" } }
+      }
+    },
+    "/pedidos": {
+      "get": {
+        "summary": "Lista pedidos",
+        "responses": { "200": { "description": "Lista" } }
+      },
+      "post": {
+        "summary": "Cria pedido (cliente → item → status → valor → prazo)",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "cliente_id": { "type": "integer" },
+                  "cliente": { "type": "string" },
+                  "titulo": { "type": "string" },
+                  "produto": { "type": "string" },
+                  "quantidade": { "type": "integer" },
+                  "valor": { "type": "number" },
+                  "prazo": { "type": "string", "format": "date" },
+                  "status": { "type": "string" },
+                  "itens": {
+                    "type": "array",
+                    "items": { "$ref": "#/components/schemas/ItemPedido" }
+                  }
+                }
+              },
+              "example": {
+                "cliente": "Loja Luma 3D",
+                "produto": "Troféu Beach Tennis",
+                "quantidade": 20,
+                "valor": 1500,
+                "prazo": "2026-08-01",
+                "status": "Orçamento"
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "Criado" } }
+      }
+    },
+    "/pedidos/{id}": {
+      "get": {
+        "summary": "Obtém pedido",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "Pedido" } }
+      },
+      "put": {
+        "summary": "Atualiza pedido",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "Atualizado" } }
+      }
+    },
+    "/chat": {
+      "post": {
+        "summary": "Camada de interpretação NL (preparada — 501)",
+        "description": "Não contorna regras. No futuro apenas interpreta e chama as rotas normais.",
+        "responses": { "501": { "description": "Preparada" } }
+      }
+    },
+    "/ia": {
+      "post": {
+        "summary": "Atalho genérico desativado (501)",
+        "description": "A IA deve usar as rotas REST normais com token ia.",
+        "responses": { "501": { "description": "Política: mesmas rotas" } }
+      }
+    }
+  }
+}

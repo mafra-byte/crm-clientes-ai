@@ -1,0 +1,202 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Mafra Maker API",
+    "version": "1.4.0",
+    "description": "API First v1 multiagente.\n\nDocs estoque (qualquer IA): /maker/api/openapi-estoque.json\nGPT Actions: /maker/api/openapi-chatgpt.json\nManual: /maker/api/MANUAL-ESTOQUE-API.md\n\nAuth Bearer. IA exige agente + usuario_origem nas escritas.\nFilamento: quantidade em gramas; custo_kg em R$/kg."
+  },
+  "servers": [{ "url": "/maker/api/v1" }],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Token admin (painel) ou ia (ChatGPT/Claude). Hash no MySQL."
+      }
+    }
+  },
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/health": {
+      "get": { "summary": "Health", "security": [], "responses": { "200": { "description": "OK" } } }
+    },
+    "/clientes": {
+      "get": { "summary": "Lista clientes", "responses": { "200": { "description": "OK" } } },
+      "post": { "summary": "Cria cliente", "responses": { "201": { "description": "Criado" } } }
+    },
+    "/clientes/{id}": {
+      "get": { "summary": "Obtém cliente", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "OK" } } },
+      "put": { "summary": "Atualiza cliente", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "OK" } } },
+      "delete": { "summary": "Exclusão lógica", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "OK" } } }
+    },
+    "/pedidos": {
+      "get": { "summary": "Lista pedidos", "responses": { "200": { "description": "OK" } } },
+      "post": { "summary": "Cria pedido + itens", "responses": { "201": { "description": "Criado" } } }
+    },
+    "/pedidos/{id}": {
+      "put": { "summary": "Atualiza pedido", "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }], "responses": { "200": { "description": "OK" } } }
+    },
+    "/maquinas": {
+      "get": {
+        "summary": "Lista máquinas (3D + laser)",
+        "parameters": [{ "name": "tipo", "in": "query", "schema": { "type": "string", "enum": ["impressora", "laser"] } }],
+        "responses": { "200": { "description": "OK" } }
+      },
+      "post": { "summary": "Cadastra máquina", "responses": { "201": { "description": "Criado" } } }
+    },
+    "/maquinas/{tipo}/{id}": {
+      "get": { "summary": "Obtém máquina", "parameters": [
+        { "name": "tipo", "in": "path", "required": true, "schema": { "type": "string", "enum": ["impressora", "laser"] } },
+        { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+      ], "responses": { "200": { "description": "OK" } } },
+      "put": { "summary": "Atualiza máquina", "parameters": [
+        { "name": "tipo", "in": "path", "required": true, "schema": { "type": "string" } },
+        { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+      ], "responses": { "200": { "description": "OK" } } },
+      "delete": { "summary": "Exclusão lógica", "parameters": [
+        { "name": "tipo", "in": "path", "required": true, "schema": { "type": "string" } },
+        { "name": "id", "in": "path", "required": true, "schema": { "type": "integer" } }
+      ], "responses": { "200": { "description": "OK" } } }
+    },
+    "/estoque": {
+      "get": {
+        "summary": "Consulta estoque com custos (saldo g, médio, último preço, valor)",
+        "description": "Ver openapi-estoque.json para schemas e exemplos completos.",
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/estoque/movimentos": {
+      "post": {
+        "summary": "Movimento (entrada/saida/ajuste). Entrada exige custo_kg e atualiza custo médio.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "examples": {
+                "compra": {
+                  "value": {
+                    "material_kind": "filament",
+                    "material_id": 1,
+                    "tipo": "entrada",
+                    "quantidade": 1000,
+                    "custo_kg": 70,
+                    "referencia": "NF 123",
+                    "usuario_origem": "mafra"
+                  }
+                },
+                "ajuste_pesagem": {
+                  "value": {
+                    "material_kind": "filament",
+                    "material_id": 1,
+                    "tipo": "ajuste",
+                    "quantidade": 780,
+                    "referencia": "pesagem",
+                    "usuario_origem": "mafra"
+                  }
+                },
+                "saida": {
+                  "value": {
+                    "material_kind": "filament",
+                    "material_id": 1,
+                    "tipo": "saida",
+                    "quantidade": 42,
+                    "usuario_origem": "mafra"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "OK" } }
+      }
+    },
+    "/materiais": {
+      "get": { "summary": "Lista materiais", "responses": { "200": { "description": "OK" } } }
+    },
+    "/materiais/filamentos": {
+      "post": {
+        "summary": "Cadastra filamento",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "material": "PLA",
+                "marca": "3Dfila",
+                "cor": "Preto",
+                "estoque_g": 1000,
+                "custo_kg": 70,
+                "usuario_origem": "mafra"
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "OK" } }
+      }
+    },
+    "/materiais/laser": {
+      "post": { "summary": "Cadastra material laser", "responses": { "201": { "description": "OK" } } }
+    },
+    "/parametros/impressao": {
+      "get": { "summary": "Parâmetros de impressão 3D", "responses": { "200": { "description": "OK" } } },
+      "post": { "summary": "Grava parâmetro de impressão 3D", "responses": { "201": { "description": "OK" } } }
+    },
+    "/parametros/laser": {
+      "get": { "summary": "Parâmetros laser", "responses": { "200": { "description": "OK" } } },
+      "post": { "summary": "Grava parâmetro laser", "responses": { "201": { "description": "OK" } } }
+    },
+    "/laser/parametros": {
+      "post": { "summary": "Alias de POST /parametros/laser", "responses": { "201": { "description": "OK" } } }
+    },
+    "/producao/ordens": {
+      "get": { "summary": "Lista ordens 3D e laser", "responses": { "200": { "description": "OK" } } },
+      "post": {
+        "summary": "Cria ordem de produção",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "examples": {
+                "3d": { "value": { "tipo": "3d", "pedido_id": 1, "printer_id": 1, "gramas_estimadas": 80 } },
+                "laser": { "value": { "tipo": "laser", "pedido_id": 1, "machine_id": 1, "material_id": 1 } }
+              }
+            }
+          }
+        },
+        "responses": { "201": { "description": "OK" } }
+      }
+    },
+    "/producao/iniciar": {
+      "post": {
+        "summary": "Inicia produção",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": { "tipo": "3d", "ordem_id": 1, "consumir_estoque": false }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/producao/baixar-peca": {
+      "post": {
+        "summary": "Baixa estoque pelo peso da peça fabricada",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "ordem_id": 3,
+                "filament_id": 1,
+                "gramas_peca": 42,
+                "usuario_origem": "mafra"
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/chat": {
+      "post": { "summary": "Bloco C — preparado (501)", "responses": { "501": { "description": "Depois do núcleo" } } }
+    }
+  }
+}

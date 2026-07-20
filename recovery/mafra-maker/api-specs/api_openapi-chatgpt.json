@@ -1,0 +1,1864 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Maker ERP AI Gateway",
+    "version": "1.3.8",
+    "description": "Schema unico GPT Actions v1.3.8 (OpenAPI 3.1.0).\n\nAUTH NO GPT BUILDER:\nAuthentication = API Key\nAuth Type = Bearer\nAPI Key = cole SOMENTE o token mk_ia_... (sem a palavra Bearer)\nFonte: maker/data/ia.token\n\nGET: agente na query. POST: agente no body (nunca nos dois).\nusuario_origem nas escritas.\nEstoque: saldo em gramas; custo_kg em R$/kg.\nSchema dedicado estoque: /maker/api/openapi-estoque.json\ncomponents.schemas = {}."
+  },
+  "servers": [
+    {
+      "url": "https://ccskf.com.br/maker/api/v1"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Base"
+    },
+    {
+      "name": "Comercial"
+    },
+    {
+      "name": "Operacao"
+    },
+    {
+      "name": "Producao"
+    }
+  ],
+  "components": {
+    "schemas": {},
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "API Key",
+        "description": "No GPT: API Key + Auth Type Bearer. Cole so mk_ia_... sem prefixo Bearer."
+      }
+    }
+  },
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "healthCheck",
+        "tags": [
+          "Base"
+        ],
+        "summary": "Saude da API",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    },
+                    "api": {
+                      "type": "string",
+                      "example": "online"
+                    },
+                    "database": {
+                      "type": "string",
+                      "example": "online"
+                    },
+                    "version": {
+                      "type": "string",
+                      "example": "1.3.8"
+                    },
+                    "agents": {
+                      "type": "integer",
+                      "example": 7
+                    },
+                    "tools": {
+                      "type": "integer",
+                      "example": 42
+                    },
+                    "server_time": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "status": "ok",
+                  "api": "online",
+                  "database": "online",
+                  "version": "1.3.8",
+                  "agents": 7,
+                  "tools": 42
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/test/chatgpt": {
+      "get": {
+        "operationId": "testChatgptConnection",
+        "tags": [
+          "Base"
+        ],
+        "summary": "Teste de conexao ChatGPT",
+        "parameters": [
+          {
+            "name": "agente",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "comercial",
+                "producao",
+                "estoque",
+                "financeiro",
+                "laser",
+                "makerworld",
+                "supervisor"
+              ]
+            },
+            "example": "supervisor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Maker ERP pronto para uso pelo ChatGPT.",
+                  "data": {
+                    "connected": true
+                  },
+                  "audit_id": 10
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/me": {
+      "get": {
+        "operationId": "getSessionMe",
+        "tags": [
+          "Base"
+        ],
+        "summary": "Sessao autenticada",
+        "parameters": [
+          {
+            "name": "agente",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "comercial",
+                "producao",
+                "estoque",
+                "financeiro",
+                "laser",
+                "makerworld",
+                "supervisor"
+              ]
+            },
+            "example": "supervisor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "OK",
+                  "data": {
+                    "usuario": {
+                      "origem": "mafra"
+                    },
+                    "agente": {
+                      "code": "supervisor"
+                    },
+                    "api_version": "1.3.8"
+                  },
+                  "audit_id": 11
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/capabilities": {
+      "get": {
+        "operationId": "listCapabilities",
+        "tags": [
+          "Base"
+        ],
+        "summary": "Agentes, tools e permissoes",
+        "parameters": [
+          {
+            "name": "agente",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "comercial",
+                "producao",
+                "estoque",
+                "financeiro",
+                "laser",
+                "makerworld",
+                "supervisor"
+              ]
+            },
+            "example": "supervisor"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/clientes": {
+      "get": {
+        "operationId": "listarClientes",
+        "tags": [
+          "Comercial"
+        ],
+        "summary": "Listar clientes",
+        "parameters": [
+          {
+            "name": "agente",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "comercial",
+                "supervisor"
+              ]
+            },
+            "example": "comercial"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "criarCliente",
+        "tags": [
+          "Comercial"
+        ],
+        "summary": "Criar cliente",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "nome",
+                  "usuario_origem"
+                ],
+                "properties": {
+                  "agente": {
+                    "type": "string",
+                    "enum": [
+                      "comercial",
+                      "supervisor"
+                    ]
+                  },
+                  "usuario_origem": {
+                    "type": "string",
+                    "enum": [
+                      "mafra",
+                      "luciana"
+                    ]
+                  },
+                  "nome": {
+                    "type": "string"
+                  },
+                  "telefone": {
+                    "type": "string"
+                  },
+                  "email": {
+                    "type": "string"
+                  },
+                  "observacoes": {
+                    "type": "string"
+                  }
+                }
+              },
+              "example": {
+                "agente": "comercial",
+                "usuario_origem": "mafra",
+                "nome": "Cliente GPT Unificado"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Criado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "OK",
+                  "data": {
+                    "cliente": {
+                      "id": 6,
+                      "name": "Cliente GPT Unificado"
+                    },
+                    "usuario_origem": "mafra"
+                  },
+                  "audit_id": 20
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/clientes/{id}": {
+      "get": {
+        "operationId": "obterCliente",
+        "tags": [
+          "Comercial"
+        ],
+        "summary": "Obter cliente",
+        "parameters": [
+          {
+            "name": "agente",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "comercial",
+                "supervisor"
+              ]
+            },
+            "example": "comercial"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 5
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/pedidos": {
+      "get": {
+        "operationId": "listarPedidos",
+        "tags": [
+          "Comercial"
+        ],
+        "summary": "Listar pedidos",
+        "parameters": [
+          {
+            "name": "agente",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "comercial",
+                "supervisor"
+              ]
+            },
+            "example": "comercial"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "criarPedido",
+        "tags": [
+          "Comercial"
+        ],
+        "summary": "Criar pedido",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "cliente_id",
+                  "titulo",
+                  "usuario_origem"
+                ],
+                "properties": {
+                  "agente": {
+                    "type": "string",
+                    "enum": [
+                      "comercial",
+                      "supervisor"
+                    ]
+                  },
+                  "usuario_origem": {
+                    "type": "string",
+                    "enum": [
+                      "mafra",
+                      "luciana"
+                    ]
+                  },
+                  "cliente_id": {
+                    "type": "integer"
+                  },
+                  "titulo": {
+                    "type": "string"
+                  },
+                  "quantidade": {
+                    "type": "integer"
+                  },
+                  "status": {
+                    "type": "string"
+                  },
+                  "valor": {
+                    "type": "number"
+                  },
+                  "itens": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "produto": {
+                          "type": "string"
+                        },
+                        "quantidade": {
+                          "type": "integer"
+                        },
+                        "valor_unitario": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "example": {
+                "agente": "comercial",
+                "usuario_origem": "mafra",
+                "cliente_id": 5,
+                "titulo": "Pedido GPT",
+                "quantidade": 1,
+                "valor": 90,
+                "itens": [
+                  {
+                    "produto": "Peca 3D",
+                    "quantidade": 1,
+                    "valor_unitario": 90
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Criado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/pedidos/{id}": {
+      "get": {
+        "operationId": "obterPedido",
+        "tags": [
+          "Comercial"
+        ],
+        "summary": "Obter pedido",
+        "parameters": [
+          {
+            "name": "agente",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "comercial",
+                "supervisor"
+              ]
+            },
+            "example": "comercial"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 3
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/maquinas": {
+      "get": {
+        "operationId": "listarMaquinas",
+        "tags": [
+          "Operacao"
+        ],
+        "summary": "Listar maquinas",
+        "parameters": [
+          {
+            "name": "agente",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "producao",
+                "laser",
+                "comercial",
+                "supervisor"
+              ]
+            },
+            "example": "producao"
+          },
+          {
+            "name": "tipo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "impressora",
+                "laser"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "OK",
+                  "data": {
+                    "maquinas": [
+                      {
+                        "id": 1,
+                        "name": "Bambu P1S Combo",
+                        "tipo": "impressora"
+                      },
+                      {
+                        "id": 2,
+                        "name": "Creality Hi Combo",
+                        "tipo": "impressora"
+                      },
+                      {
+                        "id": 1,
+                        "name": "Creality Falcon 10W",
+                        "tipo": "laser"
+                      }
+                    ],
+                    "total": 3
+                  },
+                  "audit_id": 30
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/materiais": {
+      "get": {
+        "operationId": "listarMateriais",
+        "tags": [
+          "Operacao"
+        ],
+        "summary": "Listar materiais (filamento/laser)",
+        "description": "Lista materiais. Prefira GET /estoque para ver saldo + custo medio + ultimo preco + valor.",
+        "parameters": [
+          {
+            "name": "agente",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "estoque",
+                "producao",
+                "laser",
+                "supervisor"
+              ]
+            },
+            "example": "estoque"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "filament",
+                "laser_material"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/estoque": {
+      "get": {
+        "operationId": "consultarEstoque",
+        "tags": [
+          "Operacao"
+        ],
+        "summary": "Consultar estoque com custos",
+        "description": "Snapshot: filamentos com quantidade (g), avg_cost_per_kg, last_purchase_cost_per_kg, valor_estoque; materiais laser; valor_estoque_filamentos. Use primeiro para descobrir material_id.",
+        "parameters": [
+          {
+            "name": "agente",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "estoque",
+                "producao",
+                "laser",
+                "supervisor"
+              ]
+            },
+            "example": "estoque"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Snapshot com custos",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "filamentos": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer"
+                              },
+                              "material": {
+                                "type": "string"
+                              },
+                              "brand": {
+                                "type": "string"
+                              },
+                              "color": {
+                                "type": "string"
+                              },
+                              "quantidade": {
+                                "type": "number",
+                                "description": "Saldo em gramas"
+                              },
+                              "avg_cost_per_kg": {
+                                "type": "number",
+                                "description": "Custo medio R$/kg"
+                              },
+                              "last_purchase_cost_per_kg": {
+                                "type": "number",
+                                "description": "Ultimo preco compra R$/kg"
+                              },
+                              "valor_estoque": {
+                                "type": "number"
+                              }
+                            }
+                          }
+                        },
+                        "materiais_laser": {
+                          "type": "array",
+                          "items": {
+                            "type": "object"
+                          }
+                        },
+                        "valor_estoque_filamentos": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "OK",
+                  "data": {
+                    "filamentos": [
+                      {
+                        "id": 1,
+                        "material": "PLA",
+                        "quantidade": 12500,
+                        "avg_cost_per_kg": 72.5,
+                        "last_purchase_cost_per_kg": 75,
+                        "valor_estoque": 906.25
+                      }
+                    ],
+                    "valor_estoque_filamentos": 906.25
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/estoque/movimentos": {
+      "post": {
+        "operationId": "moverEstoque",
+        "tags": [
+          "Operacao"
+        ],
+        "summary": "Movimento estoque (compra/saida/ajuste)",
+        "description": "entrada: exige custo_kg (R$/kg); atualiza ultimo preco e custo medio ponderado. saida: baixa gramas. ajuste: saldo absoluto = quantidade (pesagem); nao muda medio. Quantidade SEMPRE em gramas. Informe agente no body (nao na query).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "agente",
+                  "material_kind",
+                  "material_id",
+                  "tipo",
+                  "quantidade",
+                  "usuario_origem"
+                ],
+                "properties": {
+                  "agente": {
+                    "type": "string",
+                    "enum": [
+                      "estoque",
+                      "producao",
+                      "supervisor"
+                    ],
+                    "example": "estoque"
+                  },
+                  "usuario_origem": {
+                    "type": "string",
+                    "enum": [
+                      "mafra",
+                      "luciana"
+                    ]
+                  },
+                  "material_kind": {
+                    "type": "string",
+                    "enum": [
+                      "filament",
+                      "laser_material"
+                    ]
+                  },
+                  "material_id": {
+                    "type": "integer"
+                  },
+                  "tipo": {
+                    "type": "string",
+                    "enum": [
+                      "entrada",
+                      "saida",
+                      "ajuste"
+                    ]
+                  },
+                  "quantidade": {
+                    "type": "number",
+                    "description": "Gramas (ou unidades se laser)"
+                  },
+                  "custo_kg": {
+                    "type": "number",
+                    "description": "Obrigatorio em entrada. Preco compra R$/kg"
+                  },
+                  "referencia": {
+                    "type": "string"
+                  },
+                  "observacoes": {
+                    "type": "string"
+                  }
+                }
+              },
+              "example": {
+                "agente": "estoque",
+                "usuario_origem": "mafra",
+                "material_kind": "filament",
+                "material_id": 1,
+                "tipo": "entrada",
+                "quantidade": 1000,
+                "custo_kg": 70,
+                "referencia": "NF 123"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Movimento registrado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/materiais/filamentos": {
+      "post": {
+        "operationId": "criarFilamento",
+        "tags": [
+          "Operacao"
+        ],
+        "summary": "Cadastrar filamento",
+        "description": "Cria SKU. estoque_g em gramas; custo_kg vira medio e ultimo preco inicial. Informe agente no body (nao na query).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "agente",
+                  "material",
+                  "cor",
+                  "usuario_origem"
+                ],
+                "properties": {
+                  "agente": {
+                    "type": "string",
+                    "enum": [
+                      "estoque",
+                      "supervisor"
+                    ],
+                    "example": "estoque"
+                  },
+                  "usuario_origem": {
+                    "type": "string",
+                    "enum": [
+                      "mafra",
+                      "luciana"
+                    ]
+                  },
+                  "material": {
+                    "type": "string"
+                  },
+                  "marca": {
+                    "type": "string"
+                  },
+                  "cor": {
+                    "type": "string"
+                  },
+                  "estoque_g": {
+                    "type": "integer"
+                  },
+                  "custo_kg": {
+                    "type": "number"
+                  }
+                }
+              },
+              "example": {
+                "agente": "estoque",
+                "usuario_origem": "mafra",
+                "material": "PLA",
+                "marca": "3Dfila",
+                "cor": "Preto",
+                "estoque_g": 1000,
+                "custo_kg": 70
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Criado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "data": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/parametros/impressao": {
+      "get": {
+        "operationId": "listarParametrosImpressao",
+        "tags": [
+          "Operacao"
+        ],
+        "summary": "Parametros impressao 3D",
+        "parameters": [
+          {
+            "name": "agente",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "producao",
+                "supervisor"
+              ]
+            },
+            "example": "producao"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/parametros/laser": {
+      "get": {
+        "operationId": "listarParametrosLaser",
+        "tags": [
+          "Operacao"
+        ],
+        "summary": "Parametros laser",
+        "parameters": [
+          {
+            "name": "agente",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "laser",
+                "producao",
+                "supervisor"
+              ]
+            },
+            "example": "laser"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/producao/ordens": {
+      "get": {
+        "operationId": "listarOrdensProducao",
+        "tags": [
+          "Producao"
+        ],
+        "summary": "Listar ordens de producao",
+        "parameters": [
+          {
+            "name": "agente",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "producao",
+                "laser",
+                "supervisor"
+              ]
+            },
+            "example": "producao"
+          },
+          {
+            "name": "tipo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "3d",
+                "laser",
+                "impressao"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "criarOrdemProducao",
+        "tags": [
+          "Producao"
+        ],
+        "summary": "Criar ordem de producao",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tipo",
+                  "pedido_id",
+                  "usuario_origem"
+                ],
+                "properties": {
+                  "agente": {
+                    "type": "string",
+                    "enum": [
+                      "producao",
+                      "laser",
+                      "supervisor"
+                    ]
+                  },
+                  "usuario_origem": {
+                    "type": "string",
+                    "enum": [
+                      "mafra",
+                      "luciana"
+                    ]
+                  },
+                  "tipo": {
+                    "type": "string",
+                    "enum": [
+                      "3d",
+                      "laser"
+                    ]
+                  },
+                  "pedido_id": {
+                    "type": "integer"
+                  },
+                  "printer_id": {
+                    "type": "integer"
+                  },
+                  "gramas_estimadas": {
+                    "type": "integer"
+                  },
+                  "horas_estimadas": {
+                    "type": "number"
+                  },
+                  "observacoes": {
+                    "type": "string"
+                  },
+                  "machine_id": {
+                    "type": "integer"
+                  },
+                  "material_id": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "example": {
+                "agente": "producao",
+                "usuario_origem": "mafra",
+                "tipo": "3d",
+                "pedido_id": 3,
+                "printer_id": 1,
+                "gramas_estimadas": 80
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Criada",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/producao/ordens/{tipo}/{id}": {
+      "put": {
+        "operationId": "atualizarStatusOrdemProducao",
+        "tags": [
+          "Producao"
+        ],
+        "summary": "Atualizar status da ordem",
+        "parameters": [
+          {
+            "name": "tipo",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "3d",
+                "laser"
+              ]
+            },
+            "example": "3d"
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 3
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "status",
+                  "usuario_origem"
+                ],
+                "properties": {
+                  "agente": {
+                    "type": "string",
+                    "enum": [
+                      "producao",
+                      "laser",
+                      "supervisor"
+                    ]
+                  },
+                  "usuario_origem": {
+                    "type": "string",
+                    "enum": [
+                      "mafra",
+                      "luciana"
+                    ]
+                  },
+                  "status": {
+                    "type": "string"
+                  }
+                }
+              },
+              "example": {
+                "agente": "producao",
+                "usuario_origem": "mafra",
+                "status": "Em produção"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/producao/iniciar": {
+      "post": {
+        "operationId": "iniciarProducao",
+        "tags": [
+          "Producao"
+        ],
+        "summary": "Iniciar producao",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tipo",
+                  "ordem_id",
+                  "usuario_origem"
+                ],
+                "properties": {
+                  "agente": {
+                    "type": "string",
+                    "enum": [
+                      "producao",
+                      "laser",
+                      "supervisor"
+                    ]
+                  },
+                  "usuario_origem": {
+                    "type": "string",
+                    "enum": [
+                      "mafra",
+                      "luciana"
+                    ]
+                  },
+                  "tipo": {
+                    "type": "string",
+                    "enum": [
+                      "3d",
+                      "laser"
+                    ]
+                  },
+                  "ordem_id": {
+                    "type": "integer"
+                  },
+                  "consumir_estoque": {
+                    "type": "boolean"
+                  },
+                  "filament_id": {
+                    "type": "integer"
+                  },
+                  "quantidade_g": {
+                    "type": "number"
+                  }
+                }
+              },
+              "example": {
+                "agente": "producao",
+                "usuario_origem": "mafra",
+                "tipo": "3d",
+                "ordem_id": 3,
+                "consumir_estoque": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object"
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "message": "Produção iniciada.",
+                  "data": {
+                    "ordem": {
+                      "id": 3,
+                      "status": "Em produção"
+                    },
+                    "usuario_origem": "mafra"
+                  },
+                  "audit_id": 45
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    },
+    "/producao/baixar-peca": {
+      "post": {
+        "operationId": "baixarPecaPesada",
+        "tags": [
+          "Producao"
+        ],
+        "summary": "Baixar estoque pelo peso da peca",
+        "description": "Pesa a peca pronta e baixa o filamento. Custo material = (gramas_peca/1000) * avg_cost_per_kg. Descubra ordem_id em GET /producao/ordens e filament_id em GET /estoque. Informe agente no body (nao na query).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "agente",
+                  "ordem_id",
+                  "filament_id",
+                  "gramas_peca",
+                  "usuario_origem"
+                ],
+                "properties": {
+                  "agente": {
+                    "type": "string",
+                    "enum": [
+                      "producao",
+                      "estoque",
+                      "supervisor"
+                    ],
+                    "example": "producao"
+                  },
+                  "usuario_origem": {
+                    "type": "string",
+                    "enum": [
+                      "mafra",
+                      "luciana"
+                    ]
+                  },
+                  "ordem_id": {
+                    "type": "integer"
+                  },
+                  "filament_id": {
+                    "type": "integer"
+                  },
+                  "gramas_peca": {
+                    "type": "number",
+                    "description": "Peso da peca em gramas"
+                  }
+                }
+              },
+              "example": {
+                "agente": "producao",
+                "usuario_origem": "mafra",
+                "ordem_id": 3,
+                "filament_id": 1,
+                "gramas_peca": 42
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Baixa OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "gramas_baixadas": {
+                          "type": "number"
+                        },
+                        "custo_material": {
+                          "type": "number"
+                        },
+                        "custo_medio_kg": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "audit_id": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ]
+      }
+    }
+  }
+}

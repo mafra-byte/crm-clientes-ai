@@ -1,0 +1,585 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Maker ERP — Estoque e Custos",
+    "version": "1.4.2",
+    "description": "API de estoque Mafra Maker para qualquer IA (ChatGPT, Claude, Gemini, Cursor, custom GPT).\n\n## Base\nhttps://ccskf.com.br/maker/api/v1\n\n## Auth\nHeader: Authorization: Bearer <token>\nToken IA: maker/data/ia.token (mk_ia_...)\n\n## Agente\n- GET: query ?agente=estoque\n- POST: somente no body JSON \"agente\": \"estoque\" (não duplicar na query — ChatGPT rejeita)\n- Ou header: X-Agent-Code: estoque\n\n## Escrita (token IA)\nBody deve incluir usuario_origem: mafra|luciana\n\n## Regras de negócio\n1. Quantidade de filamento sempre em GRAMAS (g).\n2. Preços sempre em R$/kg (custo_kg).\n3. Entrada/compra: exige custo_kg → atualiza last_purchase_cost_per_kg e recalcula avg_cost_per_kg.\n4. Compra registra data_compra, fornecedor, fonte (Mercado Livre etc.) e numero_nf.\n5. Nota fiscal: multipart campo \"nota\" no POST /estoque/movimentos ou POST /estoque/movimentos/{id}/nota.\n6. Saída/baixa: desconta saldo; custo usa o médio atual.\n7. Ajuste: saldo absoluto (pesagem); NÃO altera custo médio.\n8. Baixa de peça: POST /producao/baixar-peca.\n\n## Envelope de resposta\n{ success, message, data, audit_id, meta }"
+  },
+  "servers": [
+    {
+      "url": "https://ccskf.com.br/maker/api/v1"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Consulta",
+      "description": "Saldo, custos e valor do estoque"
+    },
+    {
+      "name": "Movimentos",
+      "description": "Compra, saída e ajuste por pesagem"
+    },
+    {
+      "name": "Cadastro",
+      "description": "Novos filamentos e materiais laser"
+    },
+    {
+      "name": "Producao",
+      "description": "Baixa de estoque pela peça pesada"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "API Key",
+        "description": "Cole o token mk_ia_... (sem digitar Bearer). No GPT Builder: Authentication=API Key, Auth Type=Bearer."
+      }
+    },
+    "parameters": {
+      "agenteEstoque": {
+        "name": "agente",
+        "in": "query",
+        "required": true,
+        "description": "Código do agente. Use estoque para operações de estoque.",
+        "schema": {
+          "type": "string",
+          "enum": ["estoque", "producao", "laser", "supervisor"]
+        },
+        "example": "estoque"
+      }
+    },
+    "schemas": {
+      "Filamento": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "material": { "type": "string", "example": "PLA" },
+          "brand": { "type": "string", "nullable": true, "example": "3Dfila" },
+          "color": { "type": "string", "example": "Preto" },
+          "quantidade": { "type": "number", "description": "Saldo em gramas", "example": 12500 },
+          "unidade": { "type": "string", "example": "g" },
+          "cost_per_kg": { "type": "number", "description": "Espelho do custo médio (R$/kg)", "example": 72.5 },
+          "avg_cost_per_kg": { "type": "number", "description": "Custo médio ponderado (R$/kg)", "example": 72.5 },
+          "last_purchase_cost_per_kg": { "type": "number", "nullable": true, "description": "Último preço de compra (R$/kg)", "example": 75 },
+          "valor_estoque": { "type": "number", "description": "Valor = (quantidade/1000) × avg_cost_per_kg", "example": 906.25 },
+          "kind": { "type": "string", "example": "filament" }
+        }
+      },
+      "MaterialLaser": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer", "example": 1 },
+          "material": { "type": "string", "example": "MDF" },
+          "thickness_mm": { "type": "number", "example": 3 },
+          "quantidade": { "type": "number", "description": "Saldo em unidades", "example": 10 },
+          "unidade": { "type": "string", "example": "un" },
+          "unit_cost": { "type": "number", "example": 15 },
+          "kind": { "type": "string", "example": "laser_material" },
+          "supplier": { "type": "string", "nullable": true }
+        }
+      },
+      "EstoqueSnapshot": {
+        "type": "object",
+        "properties": {
+          "filamentos": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Filamento" }
+          },
+          "materiais_laser": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/MaterialLaser" }
+          },
+          "valor_estoque_filamentos": {
+            "type": "number",
+            "description": "Soma do valor_estoque de todos os filamentos",
+            "example": 2150.4
+          }
+        }
+      },
+      "MovimentoEntrada": {
+        "type": "object",
+        "required": ["material_kind", "material_id", "tipo", "quantidade", "custo_kg", "usuario_origem"],
+        "properties": {
+          "agente": {
+            "type": "string",
+            "enum": ["estoque", "producao", "supervisor"],
+            "example": "estoque"
+          },
+          "usuario_origem": {
+            "type": "string",
+            "enum": ["mafra", "luciana"],
+            "example": "mafra"
+          },
+          "material_kind": {
+            "type": "string",
+            "enum": ["filament", "laser_material"],
+            "example": "filament"
+          },
+          "material_id": {
+            "type": "integer",
+            "description": "ID do filamento (use GET /estoque para descobrir)",
+            "example": 1
+          },
+          "tipo": {
+            "type": "string",
+            "enum": ["entrada"],
+            "example": "entrada"
+          },
+          "quantidade": {
+            "type": "number",
+            "description": "Gramas compradas (ex.: 1000 = 1 kg)",
+            "example": 1000
+          },
+          "custo_kg": {
+            "type": "number",
+            "description": "Preço de compra em R$ por kg. Obrigatório na entrada. Atualiza último preço e custo médio.",
+            "example": 70
+          },
+          "data_compra": {
+            "type": "string",
+            "format": "date",
+            "description": "Data da compra (AAAA-MM-DD ou DD/MM/AAAA)",
+            "example": "2026-07-16"
+          },
+          "fornecedor": {
+            "type": "string",
+            "description": "Quem vendeu (marca/loja)",
+            "example": "3Dfila"
+          },
+          "fonte": {
+            "type": "string",
+            "description": "Canal: Mercado Livre, Shopee, Amazon, Site do fabricante, Loja física, etc.",
+            "example": "Mercado Livre"
+          },
+          "numero_nf": {
+            "type": "string",
+            "example": "NF 12345"
+          },
+          "referencia": {
+            "type": "string",
+            "example": "NF 12345"
+          },
+          "observacoes": {
+            "type": "string",
+            "example": "Compra loja X"
+          }
+        }
+      },
+      "MovimentoSaida": {
+        "type": "object",
+        "required": ["material_kind", "material_id", "tipo", "quantidade", "usuario_origem"],
+        "properties": {
+          "agente": { "type": "string", "enum": ["estoque", "producao", "supervisor"], "example": "estoque" },
+          "usuario_origem": { "type": "string", "enum": ["mafra", "luciana"], "example": "mafra" },
+          "material_kind": { "type": "string", "enum": ["filament", "laser_material"], "example": "filament" },
+          "material_id": { "type": "integer", "example": 1 },
+          "tipo": { "type": "string", "enum": ["saida"], "example": "saida" },
+          "quantidade": {
+            "type": "number",
+            "description": "Gramas a baixar",
+            "example": 42
+          },
+          "referencia": { "type": "string", "example": "pedido_12" },
+          "observacoes": { "type": "string" }
+        }
+      },
+      "MovimentoAjuste": {
+        "type": "object",
+        "required": ["material_kind", "material_id", "tipo", "quantidade", "usuario_origem"],
+        "description": "Define o saldo absoluto = quantidade (resultado da balança). Não altera custo médio.",
+        "properties": {
+          "agente": { "type": "string", "enum": ["estoque", "producao", "supervisor"], "example": "estoque" },
+          "usuario_origem": { "type": "string", "enum": ["mafra", "luciana"], "example": "mafra" },
+          "material_kind": { "type": "string", "enum": ["filament"], "example": "filament" },
+          "material_id": { "type": "integer", "example": 1 },
+          "tipo": { "type": "string", "enum": ["ajuste"], "example": "ajuste" },
+          "quantidade": {
+            "type": "number",
+            "description": "Peso medido do rolo em gramas (vira o novo saldo)",
+            "example": 780
+          },
+          "referencia": { "type": "string", "example": "pesagem_portal" }
+        }
+      },
+      "NovoFilamento": {
+        "type": "object",
+        "required": ["material", "cor", "usuario_origem"],
+        "properties": {
+          "agente": { "type": "string", "enum": ["estoque", "supervisor"], "example": "estoque" },
+          "usuario_origem": { "type": "string", "enum": ["mafra", "luciana"], "example": "mafra" },
+          "material": { "type": "string", "example": "PLA" },
+          "marca": { "type": "string", "example": "3Dfila" },
+          "cor": { "type": "string", "example": "Branco" },
+          "estoque_g": { "type": "integer", "description": "Estoque inicial em gramas", "example": 1000 },
+          "custo_kg": { "type": "number", "description": "Custo inicial R$/kg (vira médio e último preço)", "example": 70 },
+          "observacoes": { "type": "string" }
+        }
+      },
+      "BaixarPeca": {
+        "type": "object",
+        "required": ["ordem_id", "filament_id", "gramas_peca", "usuario_origem"],
+        "properties": {
+          "agente": { "type": "string", "enum": ["producao", "estoque", "supervisor"], "example": "producao" },
+          "usuario_origem": { "type": "string", "enum": ["mafra", "luciana"], "example": "mafra" },
+          "ordem_id": { "type": "integer", "description": "ID da OP 3D", "example": 3 },
+          "filament_id": { "type": "integer", "description": "ID do filamento usado", "example": 1 },
+          "gramas_peca": {
+            "type": "number",
+            "description": "Peso da peça fabricada em gramas (balança)",
+            "example": 42
+          }
+        }
+      },
+      "GatewayEnvelope": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "message": { "type": "string", "example": "OK" },
+          "data": { "type": "object" },
+          "audit_id": { "type": ["integer", "null"], "example": 42 },
+          "meta": { "type": "object" }
+        }
+      }
+    }
+  },
+  "security": [
+    { "bearerAuth": [] }
+  ],
+  "paths": {
+    "/estoque": {
+      "get": {
+        "operationId": "consultarEstoque",
+        "tags": ["Consulta"],
+        "summary": "Consultar estoque atual com custos",
+        "description": "Retorna filamentos (saldo g, custo médio, último preço, valor) e materiais laser. Use primeiro este endpoint para descobrir material_id.",
+        "parameters": [
+          { "$ref": "#/components/parameters/agenteEstoque" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Snapshot do estoque",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    { "$ref": "#/components/schemas/GatewayEnvelope" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "data": { "$ref": "#/components/schemas/EstoqueSnapshot" }
+                      }
+                    }
+                  ]
+                },
+                "example": {
+                  "success": true,
+                  "message": "OK",
+                  "data": {
+                    "filamentos": [
+                      {
+                        "id": 1,
+                        "material": "PLA",
+                        "brand": "3Dfila",
+                        "color": "Preto",
+                        "quantidade": 12500,
+                        "unidade": "g",
+                        "cost_per_kg": 72.5,
+                        "avg_cost_per_kg": 72.5,
+                        "last_purchase_cost_per_kg": 75,
+                        "valor_estoque": 906.25,
+                        "kind": "filament"
+                      }
+                    ],
+                    "materiais_laser": [],
+                    "valor_estoque_filamentos": 906.25
+                  },
+                  "audit_id": 42
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/materiais": {
+      "get": {
+        "operationId": "listarMateriais",
+        "tags": ["Consulta"],
+        "summary": "Listar materiais (filamento e/ou laser)",
+        "parameters": [
+          { "$ref": "#/components/parameters/agenteEstoque" },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["filament", "laser_material", "filamento", "laser"]
+            },
+            "description": "Filtra por tipo. Sem kind retorna ambos."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lista de materiais",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GatewayEnvelope" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/estoque/movimentos": {
+      "post": {
+        "operationId": "moverEstoque",
+        "tags": ["Movimentos"],
+        "summary": "Movimento de estoque (entrada, saida ou ajuste)",
+        "description": "### Tipos\n- **entrada**: compra. Exige `custo_kg`. Atualiza último preço e custo médio ponderado.\n- **saida**: baixa quantidade (g). Custo do movimento = média atual.\n- **ajuste**: saldo absoluto = quantidade (pesagem). Não muda custo médio.\n\n### Fluxo recomendado para a IA\n1. GET /estoque → achar material_id e saldo\n2. POST /estoque/movimentos com tipo adequado (agente no body)\n3. GET /estoque → confirmar novo saldo/custo",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  { "$ref": "#/components/schemas/MovimentoEntrada" },
+                  { "$ref": "#/components/schemas/MovimentoSaida" },
+                  { "$ref": "#/components/schemas/MovimentoAjuste" }
+                ]
+              },
+              "examples": {
+                "compra": {
+                  "summary": "Compra 1 kg a R$70/kg no Mercado Livre",
+                  "value": {
+                    "agente": "estoque",
+                    "usuario_origem": "mafra",
+                    "material_kind": "filament",
+                    "material_id": 1,
+                    "tipo": "entrada",
+                    "quantidade": 1000,
+                    "custo_kg": 70,
+                    "data_compra": "2026-07-16",
+                    "fornecedor": "3Dfila",
+                    "fonte": "Mercado Livre",
+                    "numero_nf": "NF 12345",
+                    "referencia": "NF 12345"
+                  }
+                },
+                "saida": {
+                  "summary": "Baixa 42 g",
+                  "value": {
+                    "agente": "estoque",
+                    "usuario_origem": "mafra",
+                    "material_kind": "filament",
+                    "material_id": 1,
+                    "tipo": "saida",
+                    "quantidade": 42,
+                    "referencia": "consumo_manual"
+                  }
+                },
+                "pesagem": {
+                  "summary": "Ajuste por pesagem do rolo",
+                  "value": {
+                    "agente": "estoque",
+                    "usuario_origem": "mafra",
+                    "material_kind": "filament",
+                    "material_id": 1,
+                    "tipo": "ajuste",
+                    "quantidade": 780,
+                    "referencia": "pesagem_balanca"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Movimento registrado",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GatewayEnvelope" },
+                "example": {
+                  "success": true,
+                  "message": "OK",
+                  "data": {
+                    "movimento": {
+                      "id": 10,
+                      "tipo": "entrada",
+                      "quantidade": 1000,
+                      "saldo_apos": 13500,
+                      "filamento": {
+                        "id": 1,
+                        "stock_grams": 13500,
+                        "avg_cost_per_kg": 72.04,
+                        "last_purchase_cost_per_kg": 70
+                      }
+                    },
+                    "usuario_origem": "mafra"
+                  },
+                  "audit_id": 55
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Erro de validação (ex.: entrada sem custo_kg, estoque insuficiente)"
+          }
+        }
+      }
+    },
+    "/materiais/filamentos": {
+      "post": {
+        "operationId": "criarFilamento",
+        "tags": ["Cadastro"],
+        "summary": "Cadastrar novo filamento",
+        "description": "Cria o SKU. Se estoque_g > 0, registra entrada inicial com custo_kg. Agente somente no body.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/NovoFilamento" },
+              "example": {
+                "agente": "estoque",
+                "usuario_origem": "mafra",
+                "material": "PETG",
+                "marca": "eSun",
+                "cor": "Transparente",
+                "estoque_g": 1000,
+                "custo_kg": 85
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Filamento criado",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GatewayEnvelope" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/materiais/laser": {
+      "post": {
+        "operationId": "criarMaterialLaser",
+        "tags": ["Cadastro"],
+        "summary": "Cadastrar material laser",
+        "description": "Agente somente no body.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["nome", "usuario_origem"],
+                "properties": {
+                  "agente": { "type": "string", "example": "estoque" },
+                  "usuario_origem": { "type": "string", "enum": ["mafra", "luciana"] },
+                  "nome": { "type": "string", "example": "MDF" },
+                  "espessura_mm": { "type": "number", "example": 3 },
+                  "estoque": { "type": "integer", "example": 10 },
+                  "custo_unitario": { "type": "number", "example": 15 },
+                  "fornecedor": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Material criado",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GatewayEnvelope" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/producao/baixar-peca": {
+      "post": {
+        "operationId": "baixarPecaPesada",
+        "tags": ["Producao"],
+        "summary": "Baixar estoque pelo peso da peça fabricada",
+        "description": "Pesa a peça pronta, informa gramas_peca + filament_id + ordem_id.\nBaixa o estoque (saída), grava actual_grams e material_cost na OP (custo = gramas/1000 × avg_cost_per_kg).\nAgente somente no body (não na query).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/BaixarPeca" },
+              "example": {
+                "agente": "producao",
+                "usuario_origem": "mafra",
+                "ordem_id": 3,
+                "filament_id": 1,
+                "gramas_peca": 42
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Baixa OK",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GatewayEnvelope" },
+                "example": {
+                  "success": true,
+                  "message": "OK",
+                  "data": {
+                    "gramas_baixadas": 42,
+                    "custo_material": 3.05,
+                    "custo_medio_kg": 72.5,
+                    "mensagem": "Estoque baixado pela peça pesada."
+                  },
+                  "audit_id": 60
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/producao/ordens": {
+      "get": {
+        "operationId": "listarOrdensProducaoParaBaixa",
+        "tags": ["Producao"],
+        "summary": "Listar OPs (útil antes de baixar peça)",
+        "parameters": [
+          {
+            "name": "agente",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "enum": ["producao", "estoque", "supervisor"] },
+            "example": "producao"
+          },
+          {
+            "name": "tipo",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "enum": ["3d", "laser"] },
+            "example": "3d"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ordens",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GatewayEnvelope" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
