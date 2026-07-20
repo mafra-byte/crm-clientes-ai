@@ -76,7 +76,8 @@ Ambiente de produção neste servidor Contabo:
 - REST ERP: https://protheus.ccskf.net/rest/
 - Empresa padrão: **99** / filial **01**
 
-Guia completo do ERP: [`docs/PROTHEUS_EMPRESA99.md`](docs/PROTHEUS_EMPRESA99.md)
+Guia completo do ERP: [`docs/PROTHEUS_EMPRESA99.md`](docs/PROTHEUS_EMPRESA99.md)  
+Isolamento (não mexer em Casamax/Davi): [`docs/ISOLAMENTO.md`](docs/ISOLAMENTO.md)
 
 ```bash
 # atualizar CRM
