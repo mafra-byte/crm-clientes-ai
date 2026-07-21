@@ -87,3 +87,14 @@ Portal: `/recebimento` → listar e **Novo recebimento** a partir do PC SC7 (`PO
 | NF entrada (recebimento) | SC7 | `C7_QUJE` (+ `C7_ENCER` se saldo zero) |
 
 Mapa Kanban do processo: portal `/fluxo-compras` (`GET /api/purchase-pipeline/live`).
+
+## Estoque SB2
+
+Tabela física **`SB2990`** (saldo por produto/armazém). O recebimento (SF1/SD1) atualiza `B2_QATU` / `B2_VATU1` / `B2_CM1`.
+
+```bash
+export PGPASSWORD=Protheus.123
+python3 scripts/seed_sb2_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus -v ON_ERROR_STOP=1
+```
+
+Portal: `/estoque` → `GET /api/stock/live`.

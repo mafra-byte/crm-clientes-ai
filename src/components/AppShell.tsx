@@ -13,6 +13,7 @@ const nav = [
   { href: "/cotacoes-compra", label: "Cotação" },
   { href: "/pedidos-compra", label: "Ped. compras" },
   { href: "/recebimento", label: "Recebimento" },
+  { href: "/estoque", label: "Estoque" },
   { href: "/pedidos", label: "Pedidos" },
   { href: "/integracoes", label: "Protheus" },
 ];

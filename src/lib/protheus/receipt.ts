@@ -7,6 +7,7 @@ import {
   safeTableName,
   trim,
 } from "@/lib/protheus/pg-shared";
+import { applyReceiptToStock } from "@/lib/protheus/sb2";
 
 export type CreateReceiptInput = {
   purchaseOrderNumber: string;
@@ -355,6 +356,15 @@ export async function createReceiptFromPurchaseOrder(input: CreateReceiptInput) 
          AND rtrim(c7_item) = $3`,
       [quantity, pcNumber, pcItem],
     );
+
+    await applyReceiptToStock(client, {
+      filial,
+      productCode,
+      warehouse,
+      quantity,
+      unitPrice,
+      description: trim(pc.c7_descri) || productCode,
+    });
 
     await client.query("COMMIT");
   } catch (error) {
