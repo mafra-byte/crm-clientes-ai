@@ -29,13 +29,22 @@ Portas ERP/License bloqueadas de fora via iptables; acesso público só via ngin
 
 ### Nginx (HTTPS / acesso remoto)
 
-O WebApp atrás do nginx HTTPS precisa de três ajustes (só no site `protheus.ccskf.net`):
+O WebApp atrás do nginx HTTPS precisa destes ajustes (só no site `protheus.ccskf.net`):
 
 1. **CSP `upgrade-insecure-requests`** em `/webapp/` — o AppServer manda o iframe TFACE como `http://host:443/app-root/...`; sem isso o Chrome/Safari bloqueia (tela branca / Mixed Content).
-2. **`proxy_set_header Origin ""`** em `/app-root/` — com header `Origin` (scripts `type=module`) o AppServer responde **401** nos JS do login.
-3. **WebSocket**: `proxy_http_version 1.1` + `Upgrade` / `Connection $connection_upgrade` e timeouts longos em `/webapp/`.
+2. **`proxy_set_header Origin ""`** em `/app-root/` — com header `Origin` (scripts `type=module`) o AppServer responde **401** nos JS do login. No nginx, string vazia **omite** o header (comportamento desejado aqui).
+3. **`proxy_set_header Origin $scheme://$host;`** em `/webapp/` — o AppServer **fecha o WebSocket** se o header `Origin` estiver ausente. Não use `Origin ""` em `/webapp/`: o nginx omite o header e o cliente cai em “Falha na comunicação!” / 502 `upstream prematurely closed connection`.
+4. **WebSocket**: `proxy_http_version 1.1` + `Upgrade` / `Connection $connection_upgrade`, `proxy_buffering off` e timeouts longos em `/webapp/`.
+
+Sintoma clássico do item 3: `POST .../start` retorna **200**, mas `GET .../ws` via HTTPS volta **502**.
 
 No hotel/Wi‑Fi instável: preferir **4G/hotspot**, Chrome anônimo, e esperar o primeiro **Entrar** (pode ficar em “Carregando...” vários minutos enquanto cria o dicionário `SX*990` da empresa 99).
+
+### AppServer (estabilidade WebApp)
+
+- Definir `RpoCustom=/totvs/protheus_2410/protheus/bin/appserver/custom.rpo` no `[environment]` para evitar flood de `RpoCustom Key not defined`.
+- Systemd: `StandardOutput=null` / `StandardError=null` e `LimitSTACK=infinity` no drop-in de `protheus-appserver`.
+- Se o Job REST (`HTTPJOB`) disparar `Ctree Error - ctThrdAttach failed - Error: 738`, desabilitar temporariamente `Jobs=HTTPJOB` / `HTTPV11 Enable=0` — não impede o WebApp.
 
 ## Banco
 
