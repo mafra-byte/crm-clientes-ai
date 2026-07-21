@@ -76,6 +76,8 @@ Comportamento padrão do Protheus (confirmado na Central TOTVS / consultores):
 
 **Não** criar `SX*990` “na mão” (nem `IDENTITY`, nem `TOP_FIELD` inventado para campos `C`). Isso gerou `permission denied` / `invalid conversion` na SX5. Fluxo correto: garantir SX2+SX3(+SIX) → `DROP TABLE` da física se estiver errada → deixar o SIGACFG recriar.
 
+Fonte oficial do dicionário: `protheus_data/systemload/sxsbra.txt` (Dicionário Completo BR). Se um alias no SX3 foi montado manualmente (ex.: SX5), **reaplicar os campos a partir do SXSBRA** e dropar a física para o Protheus recriar. Não inventar SX3 “de cabeça”.
+
 ## Paths
 
 - AppServer: `/totvs/protheus_2410/protheus/bin/appserver`
