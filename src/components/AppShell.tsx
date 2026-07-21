@@ -9,6 +9,7 @@ const nav = [
   { href: "/fornecedores", label: "Fornecedores" },
   { href: "/produtos", label: "Produtos" },
   { href: "/solicitacoes-compra", label: "Solic. compras" },
+  { href: "/cotacoes-compra", label: "Cotação" },
   { href: "/pedidos", label: "Pedidos" },
   { href: "/integracoes", label: "Protheus" },
 ];

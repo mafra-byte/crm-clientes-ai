@@ -44,3 +44,14 @@ python3 scripts/seed_sc1_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus
 ```
 
 Portal: `/solicitacoes-compra` → listar e **Nova solicitação** (`POST /api/purchase-requests/live`).
+
+## Cotação de compras SC8
+
+Tabela física **`SC8990`**:
+
+```bash
+export PGPASSWORD=Protheus.123
+python3 scripts/seed_sc8_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus -v ON_ERROR_STOP=1
+```
+
+Portal: `/cotacoes-compra` → listar e **Nova cotação** (`POST /api/purchase-quotes/live`).
