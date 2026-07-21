@@ -11,11 +11,41 @@ import {
 } from "@/lib/protheus/client";
 import { getProtheusConfig, isDemoMode } from "@/lib/protheus/config";
 import { listDemoClientsLive } from "@/lib/protheus/demo";
+import {
+  fetchSa1ClientsFromPg,
+  isProtheusPgConfigured,
+} from "@/lib/protheus/pg";
 import { getValidConnection } from "@/lib/protheus/sync";
 
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q")?.trim().toLowerCase() ?? "";
   const pageSize = Number(request.nextUrl.searchParams.get("pageSize") ?? 50);
+
+  // Preferência: dados reais no PostgreSQL do Protheus (SA1990)
+  if (isProtheusPgConfigured()) {
+    try {
+      const payload = await fetchSa1ClientsFromPg(q);
+      return NextResponse.json({
+        ...payload,
+        source: "protheus-pg",
+        demo: false,
+      });
+    } catch (error) {
+      if (!isDemoMode()) {
+        return NextResponse.json(
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Falha ao ler SA1 no PostgreSQL do Protheus",
+            source: "protheus-pg",
+            clients: [],
+          },
+          { status: 502 },
+        );
+      }
+    }
+  }
 
   if (isDemoMode()) {
     const payload = await listDemoClientsLive(q);

@@ -31,10 +31,11 @@ Portas ERP/License bloqueadas de fora via iptables; acesso público só via ngin
 ### Portal CRM via API
 
 1. Login em `/login` (`Admin` / `Protheus.123`).
-2. Com `PROTHEUS_DEMO_MODE=true` + `npm run db:seed`: painel, clientes e pedidos prontos para demo comercial.
-3. Clientes ao vivo: `/clientes` → **Ao vivo (API)** (`GET /api/clients/live`).
-4. Cadastros seguintes: fornecedores → produtos → plano de contas.
-5. WebApp fica só para configuração/ERP (SIGACFG), não como acesso principal.
+2. Com `PROTHEUS_DEMO_MODE=true` + `npm run db:seed`: painel/pedidos prontos no portal.
+3. Clientes **no Protheus**: tabela `SA1990` (ver `docs/DADOS_PROTHEUS.md` / `scripts/seed_sa1_protheus.py`).
+4. Portal lê SA1 via PostgreSQL (`PROTHEUS_PG_*`) em `/clientes` → Ao vivo.
+5. Cadastros seguintes: fornecedores → produtos → plano de contas.
+6. WebApp fica só para configuração/ERP (SIGACFG), não como acesso principal.
 
 ### Nginx (HTTPS / acesso remoto)
 

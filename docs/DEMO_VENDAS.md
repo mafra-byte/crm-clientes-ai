@@ -7,9 +7,9 @@ Usuário: **Admin** · Senha: **Protheus.123**
 
 1. **Login** — portal próprio, sem SmartClient / WebApp.
 2. **Painel** — clientes, pedidos e receita importada do ERP.
-3. **Clientes** — busca por nome/CNPJ; modo ao vivo via API.
-4. **Pedidos** — status e valores de venda.
-5. **Protheus** — testar conexão e sincronizar (em demo, simulado).
+3. **Clientes** — busca; dados vêm da tabela **SA1 do Protheus** (não só do portal).
+4. **Pedidos** — status e valores (cache demo no portal até seed SC5).
+5. **Protheus** — testar conexão e sincronizar.
 
 ## Mensagem central
 

@@ -48,7 +48,13 @@ export function ClientesView() {
         setClients(data.clients ?? []);
         setMeta(
           mode === "live"
-            ? `${data.demo ? "Demo" : "Ao vivo"} · empresa ${data.empresa ?? "99"} / filial ${data.filial ?? "01"}`
+            ? `${
+                data.source === "protheus-pg"
+                  ? "Protheus SA1"
+                  : data.demo
+                    ? "Demo"
+                    : "Ao vivo"
+              } · empresa ${data.empresa ?? "99"} / filial ${data.filial ?? "01"}`
             : "Cache local",
         );
       } catch {
