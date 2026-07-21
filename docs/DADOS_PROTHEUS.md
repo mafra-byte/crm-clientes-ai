@@ -66,3 +66,14 @@ python3 scripts/seed_sc7_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus
 ```
 
 Portal: `/pedidos-compra` → listar e **Novo pedido** (`POST /api/purchase-orders/live`).
+
+## Recebimento SF1 / SD1
+
+Tabelas físicas **`SF1990`** (cabeçalho) e **`SD1990`** (itens):
+
+```bash
+export PGPASSWORD=Protheus.123
+python3 scripts/seed_sf1_sd1_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus -v ON_ERROR_STOP=1
+```
+
+Portal: `/recebimento` → listar e **Novo recebimento** a partir do PC SC7 (`POST /api/purchase-receipts/live`). Atualiza `C7_QUJE`.

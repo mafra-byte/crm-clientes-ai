@@ -11,6 +11,7 @@ const nav = [
   { href: "/solicitacoes-compra", label: "Solic. compras" },
   { href: "/cotacoes-compra", label: "Cotação" },
   { href: "/pedidos-compra", label: "Ped. compras" },
+  { href: "/recebimento", label: "Recebimento" },
   { href: "/pedidos", label: "Pedidos" },
   { href: "/integracoes", label: "Protheus" },
 ];

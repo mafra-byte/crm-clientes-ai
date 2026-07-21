@@ -15,6 +15,12 @@ Usuário: **Admin** · Senha: **Protheus.123**
 
 > O time comercial e administrativo acessa o Protheus por um portal web moderno via API REST — sem instalar cliente, sem depender da tela do ERP.
 
+## Fluxo de compras (ao vivo no PostgreSQL)
+
+1. Fornecedores SA2 → Produtos SB1  
+2. Solic. compras SC1 → Cotação SC8 → Pedido SC7  
+3. **Recebimento SF1/SD1** (`/recebimento`) a partir do PC  
+
 ## Próximos módulos (roadmap)
 
-Fornecedores → Produtos → Plano de contas → Pedidos ao vivo.
+Plano de contas · Pedidos de venda SC5 ao vivo · Estoque.

@@ -33,6 +33,7 @@ export type ProtheusSc7Line = {
   productCode: string;
   description: string;
   quantity: number;
+  quantityDelivered: number;
   unit: string | null;
   unitPrice: number;
   total: number;
@@ -115,7 +116,7 @@ export async function fetchSc7FromPg(q = "") {
   const table = sc7Table();
   const db = getProtheusPool();
   const result = await db.query<QueryResultRow>(
-    `SELECT c7_num, c7_item, c7_produto, c7_descri, c7_quant, c7_um,
+    `SELECT c7_num, c7_item, c7_produto, c7_descri, c7_quant, c7_quje, c7_um,
             c7_preco, c7_total, c7_fornece, c7_loja, c7_local,
             c7_numsc, c7_itemsc, c7_numcot, c7_emissao, c7_datprf, c7_conapro
      FROM ${table}
@@ -138,6 +139,7 @@ export async function fetchSc7FromPg(q = "") {
         productCode,
         description: trim(row.c7_descri) || productCode,
         quantity: Number(row.c7_quant ?? 0) || 0,
+        quantityDelivered: Number(row.c7_quje ?? 0) || 0,
         unit: trim(row.c7_um) || null,
         unitPrice: Number(row.c7_preco ?? 0) || 0,
         total: Number(row.c7_total ?? 0) || 0,
@@ -316,6 +318,7 @@ export async function createSc7InPg(input: CreateSc7Input) {
       productCode,
       description,
       quantity,
+      quantityDelivered: 0,
       unit,
       unitPrice,
       total,
