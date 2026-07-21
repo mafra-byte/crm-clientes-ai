@@ -12,5 +12,13 @@ python3 scripts/seed_sa1_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus
 O portal, com `PROTHEUS_PG_*` no `.env`, lista e **cria** clientes em
 `/clientes` → **Novo cliente** (`POST /api/clients/live`), gravando na `SA1990`.
 
-Pedidos de venda (`SC5`) ainda não foram seedados no ERP (dependem de produto,
-TES etc.). O painel pode continuar mostrando pedidos do cache demo do portal.
+## Fornecedores SA2
+
+Tabela física **`SA2990`**:
+
+```bash
+export PGPASSWORD=Protheus.123
+python3 scripts/seed_sa2_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus -v ON_ERROR_STOP=1
+```
+
+Portal: `/fornecedores` → listar e **Novo fornecedor** (`POST /api/suppliers/live`).

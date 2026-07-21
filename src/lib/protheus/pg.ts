@@ -1,48 +1,15 @@
-import { Pool, type QueryResultRow } from "pg";
+import type { QueryResultRow } from "pg";
 import { getProtheusConfig } from "@/lib/protheus/config";
+import {
+  digitsOnly,
+  getProtheusPool,
+  isProtheusPgConfigured,
+  pad,
+  safeTableName,
+  trim,
+} from "@/lib/protheus/pg-shared";
 
-let pool: Pool | null = null;
-
-export function isProtheusPgConfigured() {
-  return Boolean(
-    process.env.PROTHEUS_PG_URL ||
-      (process.env.PROTHEUS_PG_HOST && process.env.PROTHEUS_PG_DATABASE),
-  );
-}
-
-function getPool() {
-  if (pool) return pool;
-  if (process.env.PROTHEUS_PG_URL) {
-    pool = new Pool({ connectionString: process.env.PROTHEUS_PG_URL });
-    return pool;
-  }
-  pool = new Pool({
-    host: process.env.PROTHEUS_PG_HOST || "127.0.0.1",
-    port: Number(process.env.PROTHEUS_PG_PORT || 5432),
-    database: process.env.PROTHEUS_PG_DATABASE || "protheus",
-    user: process.env.PROTHEUS_PG_USER || "protheus",
-    password: process.env.PROTHEUS_PG_PASSWORD || "",
-    max: 5,
-  });
-  return pool;
-}
-
-function sa1Table() {
-  const tableRaw = process.env.PROTHEUS_SA1_TABLE || "sa1990";
-  if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(tableRaw)) {
-    throw new Error("PROTHEUS_SA1_TABLE inválida");
-  }
-  return tableRaw;
-}
-
-function pad(value: string, size: number) {
-  const raw = (value ?? "").slice(0, size);
-  return raw + " ".repeat(Math.max(0, size - raw.length));
-}
-
-function digitsOnly(value: string) {
-  return value.replace(/\D/g, "");
-}
+export { isProtheusPgConfigured } from "@/lib/protheus/pg-shared";
 
 export type CreateSa1Input = {
   name: string;
@@ -75,11 +42,15 @@ export type ProtheusSa1Client = {
   protheusCode: string | null;
 };
 
-function trim(value: unknown) {
-  return typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
+function sa1Table() {
+  return safeTableName(
+    process.env.PROTHEUS_SA1_TABLE || "sa1990",
+    "PROTHEUS_SA1_TABLE",
+  );
 }
 
-async function nextSa1Code(db: Pool, table: string) {
+async function nextSa1Code(table: string) {
+  const db = getProtheusPool();
   const result = await db.query<{ max: string | null }>(
     `SELECT MAX(NULLIF(TRIM(a1_cod), '')) AS max
      FROM ${table}
@@ -102,16 +73,15 @@ export async function createSa1ClientInPg(input: CreateSa1Input) {
   if (!name) throw new Error("Informe o nome do cliente");
 
   const table = sa1Table();
-  const db = getPool();
+  const db = getProtheusPool();
   const store = (input.store?.trim() || "01").slice(0, 2).padStart(2, "0");
-  const code = (input.code?.trim() || (await nextSa1Code(db, table)))
+  const code = (input.code?.trim() || (await nextSa1Code(table)))
     .replace(/\D/g, "")
     .padStart(6, "0")
     .slice(-6);
   const document = digitsOnly(input.document ?? "").slice(0, 14);
   const personType =
-    input.personType ||
-    (document.length === 11 ? "F" : "J");
+    input.personType || (document.length === 11 ? "F" : "J");
   const tradeName = (input.tradeName?.trim() || name).slice(0, 20);
   const email = (input.email?.trim() || "").slice(0, 30);
   const phone = digitsOnly(input.phone ?? "").slice(0, 15);
@@ -120,7 +90,9 @@ export async function createSa1ClientInPg(input: CreateSa1Input) {
   const city = (input.city?.trim() || "").slice(0, 60);
   const state = (input.state?.trim() || "").toUpperCase().slice(0, 2);
   const zip = digitsOnly(input.zip ?? "").slice(0, 8);
-  const customerType = (input.customerType?.trim() || "F").slice(0, 1).toUpperCase();
+  const customerType = (input.customerType?.trim() || "F")
+    .slice(0, 1)
+    .toUpperCase();
 
   const existing = await db.query(
     `SELECT 1 FROM ${table}
@@ -202,7 +174,7 @@ export async function fetchSa1ClientsFromPg(q = ""): Promise<{
 }> {
   const config = getProtheusConfig();
   const table = sa1Table();
-  const db = getPool();
+  const db = getProtheusPool();
 
   const result = await db.query<QueryResultRow>(
     `SELECT a1_cod, a1_loja, a1_nome, a1_nreduz, a1_email, a1_tel, a1_cgc
