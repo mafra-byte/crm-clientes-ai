@@ -8,6 +8,7 @@ const nav = [
   { href: "/clientes", label: "Clientes" },
   { href: "/fornecedores", label: "Fornecedores" },
   { href: "/produtos", label: "Produtos" },
+  { href: "/fluxo-compras", label: "Fluxo compras" },
   { href: "/solicitacoes-compra", label: "Solic. compras" },
   { href: "/cotacoes-compra", label: "Cotação" },
   { href: "/pedidos-compra", label: "Ped. compras" },
@@ -31,7 +32,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 py-6 md:px-8 md:py-8">
+    <div
+      className={`mx-auto flex min-h-screen flex-col px-4 py-6 md:px-8 md:py-8 ${
+        pathname.startsWith("/fluxo-compras") ? "max-w-[92rem]" : "max-w-6xl"
+      }`}
+    >
       <header className="mb-8 flex flex-col gap-6 md:mb-10 md:flex-row md:items-end md:justify-between">
         <div className="animate-rise">
           <p className="font-[family-name:var(--font-display)] text-4xl tracking-tight text-[var(--ink)] md:text-5xl">

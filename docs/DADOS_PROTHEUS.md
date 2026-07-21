@@ -85,3 +85,5 @@ Portal: `/recebimento` → listar e **Novo recebimento** a partir do PC SC7 (`PO
 | Cotação a partir da SC | SC1 | `C1_COTACAO` |
 | Pedido a partir da cotação | SC8 (+ SC1) | `C8_NUMPED`/`C8_ITEMPED`; `C1_PEDIDO`/`C1_ITEMPED`/`C1_QUJE` |
 | NF entrada (recebimento) | SC7 | `C7_QUJE` (+ `C7_ENCER` se saldo zero) |
+
+Mapa Kanban do processo: portal `/fluxo-compras` (`GET /api/purchase-pipeline/live`).
