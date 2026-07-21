@@ -99,9 +99,15 @@ python3 scripts/seed_sb2_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus
 
 Portal: `/estoque` → `GET /api/stock/live`.
 
-## TES SF4
+## TES SF4 — integração no fluxo
 
-Tabela física **`SF4990`**. Define CFOP e se a NF de entrada atualiza estoque (`F4_ESTOQUE`).
+A TES (SF4) é o cadastro mestre. Integração Protheus:
+
+1. **Produto SB1** → `B1_TE` (TES padrão de entrada) valida em SF4  
+2. **Pedido SC7** → `C7_TES` herda de `B1_TE` (ou override)  
+3. **NF SD1** → `D1_TES`/`D1_CF` herdam de `C7_TES` → SF4 (`F4_CF`, `F4_ESTOQUE`)
+
+Ordem de resolução no recebimento: override na tela → `C7_TES` → `B1_TE` → `001`.
 
 ```bash
 export PGPASSWORD=Protheus.123

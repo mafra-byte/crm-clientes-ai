@@ -18,12 +18,17 @@ type Line = {
   supplierStore: string;
   purchaseRequestNumber: string | null;
   quoteNumber: string | null;
+  tes?: string | null;
   emission: string | null;
   needDate: string | null;
   closed?: boolean;
 };
 
-type ProductOption = { code: string; description: string };
+type ProductOption = {
+  code: string;
+  description: string;
+  entryTes: string | null;
+};
 type SupplierOption = { code: string; store: string; name: string };
 type QuoteOption = {
   number: string;
@@ -51,6 +56,7 @@ type FormState = {
   quoteProposal: string;
   quoteKey: string;
   notes: string;
+  tes: string;
 };
 
 const emptyForm: FormState = {
@@ -65,6 +71,7 @@ const emptyForm: FormState = {
   quoteProposal: "",
   quoteKey: "",
   notes: "",
+  tes: "001",
 };
 
 export function PedidosCompraView() {
@@ -73,6 +80,9 @@ export function PedidosCompraView() {
   const [products, setProducts] = useState<ProductOption[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierOption[]>([]);
   const [quotes, setQuotes] = useState<QuoteOption[]>([]);
+  const [tesList, setTesList] = useState<
+    { code: string; text: string; cfop: string }[]
+  >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [meta, setMeta] = useState("");
@@ -125,13 +135,19 @@ export function PedidosCompraView() {
       fetch("/api/products/live").then((r) => r.json()),
       fetch("/api/suppliers/live").then((r) => r.json()),
       fetch("/api/purchase-quotes/live").then((r) => r.json()),
+      fetch("/api/tes/live?entry=1").then((r) => r.json()),
     ])
-      .then(([productsData, suppliersData, quotesData]) => {
+      .then(([productsData, suppliersData, quotesData, tesData]) => {
         setProducts(
           (productsData.products ?? []).map(
-            (p: { code: string; description: string }) => ({
+            (p: {
+              code: string;
+              description: string;
+              entryTes?: string | null;
+            }) => ({
               code: p.code,
               description: p.description,
+              entryTes: p.entryTes || null,
             }),
           ),
         );
@@ -177,6 +193,15 @@ export function PedidosCompraView() {
               }),
             ),
         );
+        setTesList(
+          (tesData.lines ?? []).map(
+            (t: { code: string; text: string; cfop: string }) => ({
+              code: t.code,
+              text: t.text,
+              cfop: t.cfop,
+            }),
+          ),
+        );
       })
       .catch(() => {
         /* optional */
@@ -202,6 +227,7 @@ export function PedidosCompraView() {
         qItem.proposal === proposal,
     );
     if (!quote) return;
+    const product = products.find((p) => p.code === quote.productCode);
     setForm({
       ...form,
       quoteKey: value,
@@ -214,6 +240,7 @@ export function PedidosCompraView() {
       unitPrice: String(quote.unitPrice || ""),
       purchaseRequestNumber: quote.purchaseRequestNumber || "",
       purchaseRequestItem: quote.purchaseRequestItem || "",
+      tes: product?.entryTes || form.tes || "001",
     });
   }
 
@@ -238,6 +265,7 @@ export function PedidosCompraView() {
           quoteNumber: form.quoteNumber || undefined,
           quoteItem: form.quoteItem || undefined,
           quoteProposal: form.quoteProposal || undefined,
+          tes: form.tes || undefined,
           notes: form.notes || undefined,
         }),
       });
@@ -332,9 +360,15 @@ export function PedidosCompraView() {
               <select
                 required
                 value={form.productCode}
-                onChange={(e) =>
-                  setForm({ ...form, productCode: e.target.value })
-                }
+                onChange={(e) => {
+                  const code = e.target.value;
+                  const product = products.find((p) => p.code === code);
+                  setForm({
+                    ...form,
+                    productCode: code,
+                    tes: product?.entryTes || form.tes || "001",
+                  });
+                }}
                 className="w-full rounded-md border border-[var(--line)] px-3 py-2"
               >
                 <option value="">Selecione…</option>
@@ -386,6 +420,26 @@ export function PedidosCompraView() {
                 onChange={(e) => setForm({ ...form, unitPrice: e.target.value })}
                 className="w-full rounded-md border border-[var(--line)] px-3 py-2"
               />
+            </label>
+            <label className="text-sm md:col-span-2">
+              <span className="mb-1 block text-[var(--muted)]">
+                TES entrada (C7_TES / SF4)
+              </span>
+              <select
+                value={form.tes}
+                onChange={(e) => setForm({ ...form, tes: e.target.value })}
+                className="w-full rounded-md border border-[var(--line)] px-3 py-2"
+              >
+                {tesList.length === 0 ? (
+                  <option value="001">001</option>
+                ) : (
+                  tesList.map((t) => (
+                    <option key={t.code} value={t.code}>
+                      {t.code} · {t.text} · CFOP {t.cfop}
+                    </option>
+                  ))
+                )}
+              </select>
             </label>
             <label className="text-sm md:col-span-2">
               <span className="mb-1 block text-[var(--muted)]">Observação</span>
@@ -469,6 +523,7 @@ export function PedidosCompraView() {
                       {line.purchaseRequestNumber
                         ? ` · SC ${line.purchaseRequestNumber}`
                         : ""}
+                      {line.tes ? ` · TES ${line.tes}` : ""}
                     </p>
                   </td>
                   <td className="px-4 py-3">

@@ -72,6 +72,7 @@ export async function POST(request: NextRequest) {
       needDate: body.needDate ? String(body.needDate) : undefined,
       notes: body.notes ? String(body.notes) : undefined,
       number: body.number ? String(body.number) : undefined,
+      tes: body.tes ? String(body.tes) : undefined,
     });
     return NextResponse.json({ ok: true, source: "protheus-pg", ...created });
   } catch (error) {

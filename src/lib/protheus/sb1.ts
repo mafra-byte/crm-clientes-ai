@@ -7,6 +7,7 @@ import {
   safeTableName,
   trim,
 } from "@/lib/protheus/pg-shared";
+import { getTesByCode } from "@/lib/protheus/sf4";
 
 export type CreateSb1Input = {
   code?: string;
@@ -16,6 +17,8 @@ export type CreateSb1Input = {
   warehouse?: string;
   group?: string;
   price?: number;
+  entryTes?: string;
+  exitTes?: string;
 };
 
 export type ProtheusSb1Product = {
@@ -27,6 +30,8 @@ export type ProtheusSb1Product = {
   warehouse: string | null;
   group: string | null;
   price: number;
+  entryTes: string | null;
+  exitTes: string | null;
   source: string;
 };
 
@@ -68,7 +73,8 @@ export async function fetchSb1ProductsFromPg(q = "") {
   const table = sb1Table();
   const db = getProtheusPool();
   const result = await db.query<QueryResultRow>(
-    `SELECT b1_cod, b1_desc, b1_tipo, b1_um, b1_locpad, b1_grupo, b1_prv1
+    `SELECT b1_cod, b1_desc, b1_tipo, b1_um, b1_locpad, b1_grupo, b1_prv1,
+            b1_te, b1_ts
      FROM ${table}
      WHERE d_e_l_e_t_ = ' '
      ORDER BY b1_cod
@@ -88,6 +94,8 @@ export async function fetchSb1ProductsFromPg(q = "") {
         warehouse: trim(row.b1_locpad) || null,
         group: trim(row.b1_grupo) || null,
         price: Number(row.b1_prv1 ?? 0) || 0,
+        entryTes: trim(row.b1_te) || null,
+        exitTes: trim(row.b1_ts) || null,
         source: "protheus-pg",
       } satisfies ProtheusSb1Product;
     })
@@ -137,6 +145,21 @@ export async function createSb1ProductInPg(input: CreateSb1Input) {
       ? input.price
       : Number(input.price ?? 0) || 0;
 
+  const entryTes = (input.entryTes?.trim() || "001").padStart(3, "0").slice(-3);
+  const entry = await getTesByCode(entryTes);
+  if (entry.type !== "E") {
+    throw new Error(`TES de entrada ${entry.code} inválida no SF4`);
+  }
+  const exitTesRaw = (input.exitTes?.trim() || "").padStart(3, "0").slice(-3);
+  let exitTes = "";
+  if (input.exitTes?.trim()) {
+    const exit = await getTesByCode(exitTesRaw);
+    if (exit.type !== "S") {
+      throw new Error(`TES de saída ${exit.code} inválida no SF4`);
+    }
+    exitTes = exit.code;
+  }
+
   const existing = await db.query(
     `SELECT 1 FROM ${table}
      WHERE d_e_l_e_t_ = ' ' AND b1_filial = $1 AND b1_cod = $2
@@ -150,9 +173,9 @@ export async function createSb1ProductInPg(input: CreateSb1Input) {
   await db.query(
     `INSERT INTO ${table} (
       b1_filial, b1_cod, b1_desc, b1_tipo, b1_um, b1_locpad, b1_grupo,
-      b1_prv1, b1_msblql
+      b1_prv1, b1_msblql, b1_te, b1_ts
     ) VALUES (
-      $1,$2,$3,$4,$5,$6,$7,$8,$9
+      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11
     )`,
     [
       pad("", 2),
@@ -164,13 +187,14 @@ export async function createSb1ProductInPg(input: CreateSb1Input) {
       pad(group, 4),
       price,
       pad("2", 1),
+      pad(entry.code, 3),
+      pad(exitTes, 3),
     ],
   );
 
-  const config = getProtheusConfig();
   return {
-    empresa: config.empresa,
-    filial: config.filial,
+    empresa: getProtheusConfig().empresa,
+    filial: getProtheusConfig().filial,
     product: {
       id: code,
       code,
@@ -180,6 +204,8 @@ export async function createSb1ProductInPg(input: CreateSb1Input) {
       warehouse,
       group,
       price,
+      entryTes: entry.code,
+      exitTes: exitTes || null,
       source: "protheus-pg",
     } satisfies ProtheusSb1Product,
   };

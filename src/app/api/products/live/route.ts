@@ -65,6 +65,12 @@ export async function POST(request: NextRequest) {
         body.price === undefined || body.price === null || body.price === ""
           ? undefined
           : Number(body.price),
+      entryTes: body.entryTes
+        ? String(body.entryTes)
+        : body.tes
+          ? String(body.tes)
+          : undefined,
+      exitTes: body.exitTes ? String(body.exitTes) : undefined,
     });
     return NextResponse.json({ ok: true, source: "protheus-pg", ...created });
   } catch (error) {

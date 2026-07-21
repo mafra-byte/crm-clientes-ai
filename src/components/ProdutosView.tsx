@@ -12,8 +12,12 @@ type Product = {
   warehouse: string | null;
   group: string | null;
   price: number;
+  entryTes: string | null;
+  exitTes: string | null;
   source: string;
 };
+
+type TesOption = { code: string; text: string; cfop: string };
 
 type FormState = {
   code: string;
@@ -23,6 +27,7 @@ type FormState = {
   warehouse: string;
   group: string;
   price: string;
+  entryTes: string;
 };
 
 const emptyForm: FormState = {
@@ -33,6 +38,7 @@ const emptyForm: FormState = {
   warehouse: "01",
   group: "0001",
   price: "",
+  entryTes: "001",
 };
 
 export function ProdutosView() {
@@ -43,6 +49,7 @@ export function ProdutosView() {
   const [meta, setMeta] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [tesList, setTesList] = useState<TesOption[]>([]);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
@@ -85,6 +92,25 @@ export function ProdutosView() {
     };
   }, [load, reloadKey]);
 
+  useEffect(() => {
+    fetch("/api/tes/live?entry=1")
+      .then((r) => r.json())
+      .then((data) => {
+        setTesList(
+          (data.lines ?? []).map(
+            (t: { code: string; text: string; cfop: string }) => ({
+              code: t.code,
+              text: t.text,
+              cfop: t.cfop,
+            }),
+          ),
+        );
+      })
+      .catch(() => {
+        /* optional */
+      });
+  }, [reloadKey]);
+
   async function onCreate(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
@@ -98,6 +124,7 @@ export function ProdutosView() {
           ...form,
           code: form.code || undefined,
           price: form.price === "" ? undefined : Number(form.price),
+          entryTes: form.entryTes || "001",
         }),
       });
       const data = await res.json();
@@ -232,6 +259,26 @@ export function ProdutosView() {
                 className="w-full rounded-md border border-[var(--line)] px-3 py-2"
               />
             </label>
+            <label className="text-sm md:col-span-2">
+              <span className="mb-1 block text-[var(--muted)]">
+                TES entrada (B1_TE / SF4)
+              </span>
+              <select
+                value={form.entryTes}
+                onChange={(e) => setForm({ ...form, entryTes: e.target.value })}
+                className="w-full rounded-md border border-[var(--line)] px-3 py-2"
+              >
+                {tesList.length === 0 ? (
+                  <option value="001">001</option>
+                ) : (
+                  tesList.map((t) => (
+                    <option key={t.code} value={t.code}>
+                      {t.code} · {t.text} · CFOP {t.cfop}
+                    </option>
+                  ))
+                )}
+              </select>
+            </label>
             <label className="text-sm">
               <span className="mb-1 block text-[var(--muted)]">Grupo</span>
               <input
@@ -280,6 +327,7 @@ export function ProdutosView() {
               <th className="px-4 py-3 font-semibold">Produto</th>
               <th className="px-4 py-3 font-semibold">Tipo</th>
               <th className="px-4 py-3 font-semibold">UM</th>
+              <th className="px-4 py-3 font-semibold">TES</th>
               <th className="px-4 py-3 font-semibold">Grupo</th>
               <th className="px-4 py-3 font-semibold">Preço</th>
             </tr>
@@ -287,13 +335,13 @@ export function ProdutosView() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={6} className="px-4 py-8 text-[var(--muted)]">
                   Carregando…
                 </td>
               </tr>
             ) : products.length === 0 ? (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={6} className="px-4 py-8 text-[var(--muted)]">
                   Nenhum produto encontrado.
                 </td>
               </tr>
@@ -312,6 +360,9 @@ export function ProdutosView() {
                   </td>
                   <td className="px-4 py-3 text-[var(--muted)]">
                     {item.unit ?? "—"}
+                  </td>
+                  <td className="px-4 py-3 text-[var(--muted)]">
+                    {item.entryTes ?? "—"}
                   </td>
                   <td className="px-4 py-3 text-[var(--muted)]">
                     {item.group ?? "—"}

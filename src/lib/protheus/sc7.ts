@@ -7,6 +7,7 @@ import {
   safeTableName,
   trim,
 } from "@/lib/protheus/pg-shared";
+import { resolveEntryTes } from "@/lib/protheus/sf4";
 
 export type CreateSc7Input = {
   productCode: string;
@@ -26,6 +27,7 @@ export type CreateSc7Input = {
   needDate?: string;
   notes?: string;
   number?: string;
+  tes?: string;
 };
 
 export type ProtheusSc7Line = {
@@ -45,6 +47,7 @@ export type ProtheusSc7Line = {
   purchaseRequestNumber: string | null;
   purchaseRequestItem: string | null;
   quoteNumber: string | null;
+  tes: string | null;
   emission: string | null;
   needDate: string | null;
   approval: string | null;
@@ -136,7 +139,7 @@ export async function fetchSc7FromPg(q = "") {
     `SELECT c7_num, c7_item, c7_produto, c7_descri, c7_quant, c7_quje, c7_um,
             c7_preco, c7_total, c7_fornece, c7_loja, c7_local,
             c7_numsc, c7_itemsc, c7_numcot, c7_emissao, c7_datprf, c7_conapro,
-            c7_encer
+            c7_encer, c7_tes
      FROM ${table}
      WHERE d_e_l_e_t_ = ' '
      ORDER BY c7_num DESC, c7_item
@@ -170,6 +173,7 @@ export async function fetchSc7FromPg(q = "") {
         purchaseRequestNumber: trim(row.c7_numsc) || null,
         purchaseRequestItem: trim(row.c7_itemsc) || null,
         quoteNumber: trim(row.c7_numcot) || null,
+        tes: trim(row.c7_tes) || null,
         emission: formatDateOut(row.c7_emissao),
         needDate: formatDateOut(row.c7_datprf),
         approval: trim(row.c7_conapro) || null,
@@ -228,7 +232,7 @@ export async function createSc7InPg(input: CreateSc7Input) {
   const db = getProtheusPool();
 
   const product = await db.query<QueryResultRow>(
-    `SELECT b1_cod, b1_desc, b1_um, b1_locpad
+    `SELECT b1_cod, b1_desc, b1_um, b1_locpad, b1_te
      FROM ${products}
      WHERE d_e_l_e_t_ = ' ' AND rtrim(b1_cod) = $1
      LIMIT 1`,
@@ -237,6 +241,12 @@ export async function createSc7InPg(input: CreateSc7Input) {
   if (!product.rows[0]) {
     throw new Error(`Produto ${productCode} não encontrado no SB1`);
   }
+
+  const tes = await resolveEntryTes({
+    override: input.tes,
+    productTes: trim(product.rows[0].b1_te),
+    fallback: "001",
+  });
 
   const supplierStore = (input.supplierStore?.trim() || "01")
     .slice(0, 2)
@@ -305,9 +315,9 @@ export async function createSc7InPg(input: CreateSc7Input) {
         c7_filial, c7_num, c7_item, c7_sequen, c7_itemgrd, c7_produto, c7_descri,
         c7_um, c7_quant, c7_preco, c7_total, c7_fornece, c7_loja, c7_local,
         c7_numsc, c7_itemsc, c7_numcot, c7_emissao, c7_datprf, c7_cond, c7_obs,
-        c7_conapro, c7_quje
+        c7_conapro, c7_quje, c7_tes
       ) VALUES (
-        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24
       )`,
       [
         pad(filial, 2),
@@ -333,6 +343,7 @@ export async function createSc7InPg(input: CreateSc7Input) {
         pad(notes, 30),
         pad("L", 1),
         0,
+        pad(tes.code, 3),
       ],
     );
 
@@ -425,6 +436,7 @@ export async function createSc7InPg(input: CreateSc7Input) {
       purchaseRequestNumber: numSc || null,
       purchaseRequestItem: itemSc || null,
       quoteNumber: numCot || null,
+      tes: tes.code,
       emission: formatDateOut(emission),
       needDate: formatDateOut(needDate),
       approval: "L",

@@ -114,6 +114,40 @@ export async function getTesByCode(code: string) {
   return tes;
 }
 
+/**
+ * Resolve TES de entrada com integração SF4:
+ * override → C7_TES → B1_TE → padrão 001
+ */
+export async function resolveEntryTes(options: {
+  override?: string | null;
+  orderTes?: string | null;
+  productTes?: string | null;
+  fallback?: string;
+}) {
+  const candidates = [
+    options.override,
+    options.orderTes,
+    options.productTes,
+    options.fallback || "001",
+  ];
+  let lastError: Error | null = null;
+  for (const raw of candidates) {
+    const code = (raw || "").trim();
+    if (!code) continue;
+    try {
+      const tes = await getTesByCode(code);
+      if (tes.type !== "E") {
+        lastError = new Error(`TES ${tes.code} não é de entrada`);
+        continue;
+      }
+      return tes;
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+  }
+  throw lastError || new Error("Nenhuma TES de entrada válida no SF4");
+}
+
 export async function createTesInPg(input: CreateTesInput) {
   if (!isProtheusPgConfigured()) {
     throw new Error("PostgreSQL do Protheus não configurado (PROTHEUS_PG_*)");

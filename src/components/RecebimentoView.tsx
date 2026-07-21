@@ -33,6 +33,7 @@ type OrderOption = {
   unitPrice: number;
   supplierCode: string;
   supplierStore: string;
+  tes: string | null;
 };
 
 type TesOption = {
@@ -128,6 +129,7 @@ export function RecebimentoView() {
               unitPrice: number;
               supplierCode: string;
               supplierStore: string;
+              tes?: string | null;
               closed?: boolean;
             }) => {
               const delivered = Number(l.quantityDelivered ?? 0) || 0;
@@ -143,6 +145,7 @@ export function RecebimentoView() {
                 unitPrice: l.unitPrice,
                 supplierCode: l.supplierCode,
                 supplierStore: l.supplierStore,
+                tes: l.tes || null,
                 closed: Boolean(l.closed),
               };
             },
@@ -188,6 +191,7 @@ export function RecebimentoView() {
       ...form,
       orderKey: value,
       quantity: order ? String(order.balance) : "",
+      tes: order?.tes || form.tes || "001",
     });
   }
 

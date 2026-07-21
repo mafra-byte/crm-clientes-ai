@@ -8,7 +8,7 @@ import {
   trim,
 } from "@/lib/protheus/pg-shared";
 import { applyReceiptToStock } from "@/lib/protheus/sb2";
-import { getTesByCode } from "@/lib/protheus/sf4";
+import { resolveEntryTes } from "@/lib/protheus/sf4";
 
 export type CreateReceiptInput = {
   purchaseOrderNumber: string;
@@ -53,6 +53,13 @@ function sd1Table() {
   return safeTableName(
     process.env.PROTHEUS_SD1_TABLE || "sd1990",
     "PROTHEUS_SD1_TABLE",
+  );
+}
+
+function sb1Table() {
+  return safeTableName(
+    process.env.PROTHEUS_SB1_TABLE || "sb1990",
+    "PROTHEUS_SB1_TABLE",
   );
 }
 
@@ -176,7 +183,7 @@ export async function createReceiptFromPurchaseOrder(input: CreateReceiptInput) 
 
   const order = await db.query<QueryResultRow>(
     `SELECT c7_num, c7_item, c7_produto, c7_descri, c7_um, c7_quant, c7_preco,
-            c7_fornece, c7_loja, c7_local, c7_quje
+            c7_fornece, c7_loja, c7_local, c7_quje, c7_tes
      FROM ${orderTable}
      WHERE d_e_l_e_t_ = ' '
        AND rtrim(c7_num) = $1
@@ -189,6 +196,13 @@ export async function createReceiptFromPurchaseOrder(input: CreateReceiptInput) 
   }
 
   const pc = order.rows[0];
+  const productCode = trim(pc.c7_produto);
+  const product = await db.query<QueryResultRow>(
+    `SELECT b1_te FROM ${sb1Table()}
+     WHERE d_e_l_e_t_ = ' ' AND rtrim(b1_cod) = $1
+     LIMIT 1`,
+    [productCode],
+  );
   const orderedQty = Number(pc.c7_quant ?? 0) || 0;
   const already = Number(pc.c7_quje ?? 0) || 0;
   const remaining = Math.max(orderedQty - already, 0);
@@ -213,7 +227,6 @@ export async function createReceiptFromPurchaseOrder(input: CreateReceiptInput) 
     throw new Error("Informe um preço válido");
   }
 
-  const productCode = trim(pc.c7_produto);
   const unit = trim(pc.c7_um) || "UN";
   const supplierCode = trim(pc.c7_fornece).padStart(6, "0").slice(-6);
   const supplierStore = trim(pc.c7_loja) || "01";
@@ -229,11 +242,12 @@ export async function createReceiptFromPurchaseOrder(input: CreateReceiptInput) 
   const emission = toProtheusDate();
   let itemCode = "0001";
 
-  const tesCode = (input.tes?.trim() || "001").padStart(3, "0").slice(-3);
-  const tes = await getTesByCode(tesCode);
-  if (tes.type !== "E") {
-    throw new Error(`TES ${tes.code} não é de entrada`);
-  }
+  const tes = await resolveEntryTes({
+    override: input.tes,
+    orderTes: trim(pc.c7_tes),
+    productTes: trim(product.rows[0]?.b1_te),
+    fallback: "001",
+  });
   const cfop = (tes.cfop || "1102").slice(0, 5);
 
   const client = await db.connect();
