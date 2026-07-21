@@ -64,6 +64,10 @@ export async function POST(request: NextRequest) {
         ? String(body.purchaseRequestItem)
         : undefined,
       quoteNumber: body.quoteNumber ? String(body.quoteNumber) : undefined,
+      quoteItem: body.quoteItem ? String(body.quoteItem) : undefined,
+      quoteProposal: body.quoteProposal
+        ? String(body.quoteProposal)
+        : undefined,
       paymentTerm: body.paymentTerm ? String(body.paymentTerm) : undefined,
       needDate: body.needDate ? String(body.needDate) : undefined,
       notes: body.notes ? String(body.notes) : undefined,

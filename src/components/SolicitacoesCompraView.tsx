@@ -19,6 +19,9 @@ type Line = {
   emission: string | null;
   needDate: string | null;
   approved: string | null;
+  quoteNumber: string | null;
+  purchaseOrderNumber: string | null;
+  closed: boolean;
 };
 
 type ProductOption = {
@@ -322,18 +325,19 @@ export function SolicitacoesCompraView() {
               <th className="px-4 py-3 font-semibold">Total</th>
               <th className="px-4 py-3 font-semibold">Solicitante</th>
               <th className="px-4 py-3 font-semibold">Necessidade</th>
+              <th className="px-4 py-3 font-semibold">Status</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
                   Carregando…
                 </td>
               </tr>
             ) : lines.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
                   Nenhuma solicitação encontrada.
                 </td>
               </tr>
@@ -368,6 +372,13 @@ export function SolicitacoesCompraView() {
                   </td>
                   <td className="px-4 py-3 text-[var(--muted)]">
                     {line.needDate ?? "—"}
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {line.closed
+                      ? line.purchaseOrderNumber
+                        ? `Fechada · PC ${line.purchaseOrderNumber}`
+                        : `Fechada · Cot. ${line.quoteNumber}`
+                      : "Aberta"}
                   </td>
                 </tr>
               ))

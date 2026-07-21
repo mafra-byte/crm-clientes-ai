@@ -10,6 +10,7 @@ type Line = {
   productCode: string;
   description: string;
   quantity: number;
+  quantityDelivered?: number;
   unit: string | null;
   unitPrice: number;
   total: number;
@@ -19,6 +20,7 @@ type Line = {
   quoteNumber: string | null;
   emission: string | null;
   needDate: string | null;
+  closed?: boolean;
 };
 
 type ProductOption = { code: string; description: string };
@@ -34,6 +36,7 @@ type QuoteOption = {
   supplierCode: string;
   purchaseRequestNumber: string | null;
   purchaseRequestItem: string | null;
+  closed?: boolean;
 };
 
 type FormState = {
@@ -44,6 +47,8 @@ type FormState = {
   purchaseRequestNumber: string;
   purchaseRequestItem: string;
   quoteNumber: string;
+  quoteItem: string;
+  quoteProposal: string;
   quoteKey: string;
   notes: string;
 };
@@ -56,6 +61,8 @@ const emptyForm: FormState = {
   purchaseRequestNumber: "",
   purchaseRequestItem: "",
   quoteNumber: "",
+  quoteItem: "",
+  quoteProposal: "",
   quoteKey: "",
   notes: "",
 };
@@ -142,41 +149,49 @@ export function PedidosCompraView() {
           ),
         );
         setQuotes(
-          (quotesData.lines ?? []).map(
-            (l: {
-              number: string;
-              item: string;
-              proposal: string;
-              productCode: string;
-              description: string;
-              quantity: number;
-              unitPrice: number;
-              supplierCode: string;
-              purchaseRequestNumber: string | null;
-              purchaseRequestItem: string | null;
-            }) => ({
-              number: l.number,
-              item: l.item,
-              proposal: l.proposal,
-              productCode: l.productCode,
-              description: l.description,
-              quantity: l.quantity,
-              unitPrice: l.unitPrice,
-              supplierCode: l.supplierCode,
-              purchaseRequestNumber: l.purchaseRequestNumber,
-              purchaseRequestItem: l.purchaseRequestItem,
-            }),
-          ),
+          (quotesData.lines ?? [])
+            .filter((l: { closed?: boolean }) => !l.closed)
+            .map(
+              (l: {
+                number: string;
+                item: string;
+                proposal: string;
+                productCode: string;
+                description: string;
+                quantity: number;
+                unitPrice: number;
+                supplierCode: string;
+                purchaseRequestNumber: string | null;
+                purchaseRequestItem: string | null;
+              }) => ({
+                number: l.number,
+                item: l.item,
+                proposal: l.proposal,
+                productCode: l.productCode,
+                description: l.description,
+                quantity: l.quantity,
+                unitPrice: l.unitPrice,
+                supplierCode: l.supplierCode,
+                purchaseRequestNumber: l.purchaseRequestNumber,
+                purchaseRequestItem: l.purchaseRequestItem,
+              }),
+            ),
         );
       })
       .catch(() => {
         /* optional */
       });
-  }, []);
+  }, [reloadKey]);
 
   function onQuoteChange(value: string) {
     if (!value) {
-      setForm({ ...form, quoteNumber: "", quoteKey: "" });
+      setForm({
+        ...form,
+        quoteNumber: "",
+        quoteItem: "",
+        quoteProposal: "",
+        quoteKey: "",
+      });
       return;
     }
     const [number, item, proposal] = value.split("|");
@@ -191,6 +206,8 @@ export function PedidosCompraView() {
       ...form,
       quoteKey: value,
       quoteNumber: quote.number,
+      quoteItem: quote.item,
+      quoteProposal: quote.proposal,
       productCode: quote.productCode,
       supplierCode: quote.supplierCode,
       quantity: String(quote.quantity || 1),
@@ -219,6 +236,8 @@ export function PedidosCompraView() {
           purchaseRequestNumber: form.purchaseRequestNumber || undefined,
           purchaseRequestItem: form.purchaseRequestItem || undefined,
           quoteNumber: form.quoteNumber || undefined,
+          quoteItem: form.quoteItem || undefined,
+          quoteProposal: form.quoteProposal || undefined,
           notes: form.notes || undefined,
         }),
       });
@@ -419,18 +438,19 @@ export function PedidosCompraView() {
               <th className="px-4 py-3 font-semibold">Qtd</th>
               <th className="px-4 py-3 font-semibold">Total</th>
               <th className="px-4 py-3 font-semibold">Entrega</th>
+              <th className="px-4 py-3 font-semibold">Status</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
                   Carregando…
                 </td>
               </tr>
             ) : lines.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
                   Nenhum pedido encontrado.
                 </td>
               </tr>
@@ -462,12 +482,18 @@ export function PedidosCompraView() {
                   </td>
                   <td className="px-4 py-3 text-[var(--muted)]">
                     {line.quantity} {line.unit ?? ""}
+                    {line.quantityDelivered
+                      ? ` · ent. ${line.quantityDelivered}`
+                      : ""}
                   </td>
                   <td className="px-4 py-3 font-medium">
                     {formatMoney(line.total)}
                   </td>
                   <td className="px-4 py-3 text-[var(--muted)]">
                     {line.needDate ?? "—"}
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {line.closed ? "Baixado" : "Aberto"}
                   </td>
                 </tr>
               ))

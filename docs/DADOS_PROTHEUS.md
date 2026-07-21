@@ -76,4 +76,12 @@ export PGPASSWORD=Protheus.123
 python3 scripts/seed_sf1_sd1_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus -v ON_ERROR_STOP=1
 ```
 
-Portal: `/recebimento` → listar e **Novo recebimento** a partir do PC SC7 (`POST /api/purchase-receipts/live`). Atualiza `C7_QUJE`.
+Portal: `/recebimento` → listar e **Novo recebimento** a partir do PC SC7 (`POST /api/purchase-receipts/live`). Atualiza `C7_QUJE` e, ao completar a quantidade, `C7_ENCER='E'`.
+
+## Encadeamento de fechamento
+
+| Ação | Fecha documento | Campos |
+|------|-----------------|--------|
+| Cotação a partir da SC | SC1 | `C1_COTACAO` |
+| Pedido a partir da cotação | SC8 (+ SC1) | `C8_NUMPED`/`C8_ITEMPED`; `C1_PEDIDO`/`C1_ITEMPED`/`C1_QUJE` |
+| NF entrada (recebimento) | SC7 | `C7_QUJE` (+ `C7_ENCER` se saldo zero) |

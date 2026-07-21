@@ -42,11 +42,21 @@ export type ProtheusSc8Line = {
   supplierName: string;
   purchaseRequestNumber: string | null;
   purchaseRequestItem: string | null;
+  purchaseOrderNumber: string | null;
+  purchaseOrderItem: string | null;
   emission: string | null;
   validUntil: string | null;
   deliveryDays: number;
+  closed: boolean;
   source: string;
 };
+
+function sc1Table() {
+  return safeTableName(
+    process.env.PROTHEUS_SC1_TABLE || "sc1990",
+    "PROTHEUS_SC1_TABLE",
+  );
+}
 
 function sc8Table() {
   return safeTableName(
@@ -117,7 +127,7 @@ export async function fetchSc8FromPg(q = "") {
   const result = await db.query<QueryResultRow>(
     `SELECT c8_num, c8_item, c8_numpro, c8_produto, c8_descri, c8_quant, c8_um,
             c8_preco, c8_total, c8_fornece, c8_loja, c8_fornome,
-            c8_numsc, c8_itemsc, c8_emissao, c8_valida, c8_prazo
+            c8_numsc, c8_itemsc, c8_numped, c8_itemped, c8_emissao, c8_valida, c8_prazo
      FROM ${table}
      WHERE d_e_l_e_t_ = ' '
      ORDER BY c8_num DESC, c8_item, c8_numpro
@@ -132,6 +142,7 @@ export async function fetchSc8FromPg(q = "") {
       const proposal = trim(row.c8_numpro) || "01";
       const productCode = trim(row.c8_produto);
       const supplierCode = trim(row.c8_fornece);
+      const purchaseOrderNumber = trim(row.c8_numped) || null;
       return {
         id: `${number}-${item}-${proposal}-${supplierCode}`,
         number,
@@ -148,9 +159,12 @@ export async function fetchSc8FromPg(q = "") {
         supplierName: trim(row.c8_fornome) || supplierCode,
         purchaseRequestNumber: trim(row.c8_numsc) || null,
         purchaseRequestItem: trim(row.c8_itemsc) || null,
+        purchaseOrderNumber,
+        purchaseOrderItem: trim(row.c8_itemped) || null,
         emission: formatDateOut(row.c8_emissao),
         validUntil: formatDateOut(row.c8_valida),
         deliveryDays: Number(row.c8_prazo ?? 0) || 0,
+        closed: Boolean(purchaseOrderNumber),
         source: "protheus-pg",
       } satisfies ProtheusSc8Line;
     })
@@ -291,38 +305,91 @@ export async function createSc8InPg(input: CreateSc8Input) {
     throw new Error("Já existe esta proposta de fornecedor neste item da cotação");
   }
 
-  await db.query(
-    `INSERT INTO ${table} (
-      c8_filial, c8_num, c8_item, c8_itemgrd, c8_numpro, c8_produto, c8_descri,
-      c8_um, c8_quant, c8_preco, c8_total, c8_fornece, c8_loja, c8_fornome,
-      c8_numsc, c8_itemsc, c8_emissao, c8_valida, c8_cond, c8_prazo, c8_obs
-    ) VALUES (
-      $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21
-    )`,
-    [
-      pad(filial, 2),
-      pad(number, 6),
-      pad(itemCode, 4),
-      pad("", 3),
-      pad(proposal, 2),
-      pad(productCode, 15),
-      pad(description, 50),
-      pad(unit, 2),
-      quantity,
-      unitPrice,
-      total,
-      pad(supplierCode, 6),
-      pad(supplierStore, 2),
-      pad(supplierName, 50),
-      pad(numSc, 6),
-      pad(itemSc, 4),
-      pad(emission, 8),
-      pad(validUntil, 8),
-      pad(paymentTerm, 3),
-      deliveryDays,
-      notes,
-    ],
-  );
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+
+    await client.query(
+      `INSERT INTO ${table} (
+        c8_filial, c8_num, c8_item, c8_itemgrd, c8_numpro, c8_produto, c8_descri,
+        c8_um, c8_quant, c8_preco, c8_total, c8_fornece, c8_loja, c8_fornome,
+        c8_numsc, c8_itemsc, c8_emissao, c8_valida, c8_cond, c8_prazo, c8_obs
+      ) VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21
+      )`,
+      [
+        pad(filial, 2),
+        pad(number, 6),
+        pad(itemCode, 4),
+        pad("", 3),
+        pad(proposal, 2),
+        pad(productCode, 15),
+        pad(description, 50),
+        pad(unit, 2),
+        quantity,
+        unitPrice,
+        total,
+        pad(supplierCode, 6),
+        pad(supplierStore, 2),
+        pad(supplierName, 50),
+        pad(numSc, 6),
+        pad(itemSc, 4),
+        pad(emission, 8),
+        pad(validUntil, 8),
+        pad(paymentTerm, 3),
+        deliveryDays,
+        notes,
+      ],
+    );
+
+    // Fecha a solicitação (SC1) vinculada: grava C1_COTACAO
+    if (numSc && itemSc) {
+      const sc1 = sc1Table();
+      const openSc = await client.query<QueryResultRow>(
+        `SELECT c1_cotacao, c1_pedido
+         FROM ${sc1}
+         WHERE d_e_l_e_t_ = ' '
+           AND rtrim(c1_num) = $1
+           AND rtrim(c1_item) = $2
+         LIMIT 1`,
+        [numSc.padStart(6, "0").slice(-6), itemSc.padStart(4, "0").slice(-4)],
+      );
+      if (!openSc.rows[0]) {
+        throw new Error(`Solicitação ${numSc}/${itemSc} não encontrada`);
+      }
+      const existingQuote = trim(openSc.rows[0].c1_cotacao);
+      const existingPo = trim(openSc.rows[0].c1_pedido);
+      if (existingPo) {
+        throw new Error(
+          `Solicitação ${numSc}/${itemSc} já gerou pedido ${existingPo}`,
+        );
+      }
+      if (existingQuote && existingQuote !== number) {
+        throw new Error(
+          `Solicitação ${numSc}/${itemSc} já está em cotação ${existingQuote}`,
+        );
+      }
+      await client.query(
+        `UPDATE ${sc1}
+         SET c1_cotacao = $1
+         WHERE d_e_l_e_t_ = ' '
+           AND rtrim(c1_num) = $2
+           AND rtrim(c1_item) = $3`,
+        [
+          pad(number, 6),
+          numSc.padStart(6, "0").slice(-6),
+          itemSc.padStart(4, "0").slice(-4),
+        ],
+      );
+    }
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 
   return {
     empresa: config.empresa,
@@ -343,9 +410,12 @@ export async function createSc8InPg(input: CreateSc8Input) {
       supplierName,
       purchaseRequestNumber: numSc || null,
       purchaseRequestItem: itemSc || null,
+      purchaseOrderNumber: null,
+      purchaseOrderItem: null,
       emission: formatDateOut(emission),
       validUntil: formatDateOut(validUntil),
       deliveryDays,
+      closed: false,
       source: "protheus-pg",
     } satisfies ProtheusSc8Line,
   };

@@ -21,6 +21,8 @@ type Line = {
   emission: string | null;
   validUntil: string | null;
   deliveryDays: number;
+  purchaseOrderNumber: string | null;
+  closed: boolean;
 };
 
 type ProductOption = { code: string; description: string; unit: string | null };
@@ -138,27 +140,29 @@ export function CotacoesCompraView() {
           ),
         );
         setScs(
-          (scData.lines ?? []).map(
-            (l: {
-              number: string;
-              item: string;
-              productCode: string;
-              description: string;
-              quantity: number;
-            }) => ({
-              number: l.number,
-              item: l.item,
-              productCode: l.productCode,
-              description: l.description,
-              quantity: l.quantity,
-            }),
-          ),
+          (scData.lines ?? [])
+            .filter((l: { closed?: boolean }) => !l.closed)
+            .map(
+              (l: {
+                number: string;
+                item: string;
+                productCode: string;
+                description: string;
+                quantity: number;
+              }) => ({
+                number: l.number,
+                item: l.item,
+                productCode: l.productCode,
+                description: l.description,
+                quantity: l.quantity,
+              }),
+            ),
         );
       })
       .catch(() => {
         /* optional helpers */
       });
-  }, []);
+  }, [reloadKey]);
 
   function onScChange(value: string) {
     if (!value) {
@@ -415,18 +419,19 @@ export function CotacoesCompraView() {
               <th className="px-4 py-3 font-semibold">Qtd</th>
               <th className="px-4 py-3 font-semibold">Preço</th>
               <th className="px-4 py-3 font-semibold">Total</th>
+              <th className="px-4 py-3 font-semibold">Status</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
                   Carregando…
                 </td>
               </tr>
             ) : lines.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
                   Nenhuma cotação encontrada.
                 </td>
               </tr>
@@ -465,6 +470,11 @@ export function CotacoesCompraView() {
                   <td className="px-4 py-3">{formatMoney(line.unitPrice)}</td>
                   <td className="px-4 py-3 font-medium">
                     {formatMoney(line.total)}
+                  </td>
+                  <td className="px-4 py-3 text-xs">
+                    {line.closed
+                      ? `Fechada · PC ${line.purchaseOrderNumber}`
+                      : "Aberta"}
                   </td>
                 </tr>
               ))

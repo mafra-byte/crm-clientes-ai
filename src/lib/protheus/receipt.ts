@@ -343,7 +343,13 @@ export async function createReceiptFromPurchaseOrder(input: CreateReceiptInput) 
 
     await client.query(
       `UPDATE ${orderTable}
-       SET c7_quje = COALESCE(c7_quje,0) + $1
+       SET c7_quje = COALESCE(c7_quje,0) + $1,
+           c7_encer = CASE
+             WHEN COALESCE(c7_quje,0) + $1 >= COALESCE(c7_quant,0)
+               AND COALESCE(c7_quant,0) > 0
+             THEN 'E'
+             ELSE c7_encer
+           END
        WHERE d_e_l_e_t_ = ' '
          AND rtrim(c7_num) = $2
          AND rtrim(c7_item) = $3`,

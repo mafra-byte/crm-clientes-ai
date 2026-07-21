@@ -37,6 +37,11 @@ export type ProtheusSc1Line = {
   emission: string | null;
   needDate: string | null;
   approved: string | null;
+  quoteNumber: string | null;
+  purchaseOrderNumber: string | null;
+  purchaseOrderItem: string | null;
+  quantityOrdered: number;
+  closed: boolean;
   source: string;
 };
 
@@ -96,7 +101,8 @@ export async function fetchSc1FromPg(q = "") {
   const result = await db.query<QueryResultRow>(
     `SELECT c1_num, c1_item, c1_produto, c1_descri, c1_quant, c1_um,
             c1_vunit, c1_total, c1_local, c1_solicit, c1_obs,
-            c1_emissao, c1_datprf, c1_aprov
+            c1_emissao, c1_datprf, c1_aprov, c1_cotacao, c1_pedido,
+            c1_itemped, c1_quje
      FROM ${table}
      WHERE d_e_l_e_t_ = ' '
      ORDER BY c1_num DESC, c1_item
@@ -109,6 +115,8 @@ export async function fetchSc1FromPg(q = "") {
       const number = trim(row.c1_num);
       const item = trim(row.c1_item);
       const productCode = trim(row.c1_produto);
+      const quoteNumber = trim(row.c1_cotacao) || null;
+      const purchaseOrderNumber = trim(row.c1_pedido) || null;
       return {
         id: `${number}-${item}`,
         number,
@@ -125,6 +133,11 @@ export async function fetchSc1FromPg(q = "") {
         emission: formatDateOut(row.c1_emissao),
         needDate: formatDateOut(row.c1_datprf),
         approved: trim(row.c1_aprov) || null,
+        quoteNumber,
+        purchaseOrderNumber,
+        purchaseOrderItem: trim(row.c1_itemped) || null,
+        quantityOrdered: Number(row.c1_quje ?? 0) || 0,
+        closed: Boolean(quoteNumber || purchaseOrderNumber),
         source: "protheus-pg",
       } satisfies ProtheusSc1Line;
     })
@@ -271,6 +284,11 @@ export async function createSc1InPg(input: CreateSc1Input) {
       emission: formatDateOut(emission),
       needDate: formatDateOut(needDate),
       approved: "L",
+      quoteNumber: null,
+      purchaseOrderNumber: null,
+      purchaseOrderItem: null,
+      quantityOrdered: 0,
+      closed: false,
       source: "protheus-pg",
     } satisfies ProtheusSc1Line,
   };
