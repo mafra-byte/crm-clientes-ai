@@ -1,5 +1,3 @@
-import { createHmac, timingSafeEqual } from "crypto";
-
 export const SESSION_COOKIE = "portal_session";
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 
@@ -38,35 +36,70 @@ export function validatePortalLogin(username: string, password: string) {
   return portalOk || erpOk;
 }
 
-function sign(payload: string) {
-  return createHmac("sha256", sessionSecret()).update(payload).digest("base64url");
+function toBase64Url(bytes: ArrayBuffer | Uint8Array) {
+  const view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  let binary = "";
+  for (let i = 0; i < view.length; i += 1) {
+    binary += String.fromCharCode(view[i]!);
+  }
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
-export function createSessionToken(username: string) {
+function fromBase64Url(value: string) {
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = padded.length % 4 === 0 ? "" : "=".repeat(4 - (padded.length % 4));
+  const binary = atob(padded + pad);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+function timingSafeEqual(a: string, b: string) {
+  if (a.length !== b.length) return false;
+  let out = 0;
+  for (let i = 0; i < a.length; i += 1) {
+    out |= a.charCodeAt(i)! ^ b.charCodeAt(i)!;
+  }
+  return out === 0;
+}
+
+async function sign(payload: string) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(sessionSecret()),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"],
+  );
+  const signature = await crypto.subtle.sign("HMAC", key, enc.encode(payload));
+  return toBase64Url(signature);
+}
+
+export async function createSessionToken(username: string) {
   const session: PortalSession = {
     username,
     exp: Date.now() + SESSION_TTL_MS,
   };
-  const payload = Buffer.from(JSON.stringify(session)).toString("base64url");
-  return `${payload}.${sign(payload)}`;
+  const payload = toBase64Url(new TextEncoder().encode(JSON.stringify(session)));
+  return `${payload}.${await sign(payload)}`;
 }
 
-export function verifySessionToken(token: string | undefined | null): PortalSession | null {
+export async function verifySessionToken(
+  token: string | undefined | null,
+): Promise<PortalSession | null> {
   if (!token) return null;
   const [payload, signature] = token.split(".");
   if (!payload || !signature) return null;
 
-  const expected = sign(payload);
-  const left = Buffer.from(signature);
-  const right = Buffer.from(expected);
-  if (left.length !== right.length || !timingSafeEqual(left, right)) {
-    return null;
-  }
+  const expected = await sign(payload);
+  if (!timingSafeEqual(signature, expected)) return null;
 
   try {
-    const session = JSON.parse(
-      Buffer.from(payload, "base64url").toString("utf8"),
-    ) as PortalSession;
+    const json = new TextDecoder().decode(fromBase64Url(payload));
+    const session = JSON.parse(json) as PortalSession;
     if (!session?.username || !session?.exp || session.exp < Date.now()) {
       return null;
     }

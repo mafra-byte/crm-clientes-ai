@@ -11,10 +11,10 @@ describe("portal auth", () => {
     expect(validatePortalLogin("Admin", "errada")).toBe(false);
   });
 
-  it("cria e valida token de sessão", () => {
-    const token = createSessionToken("Admin");
-    const session = verifySessionToken(token);
+  it("cria e valida token de sessão", async () => {
+    const token = await createSessionToken("Admin");
+    const session = await verifySessionToken(token);
     expect(session?.username).toBe("Admin");
-    expect(verifySessionToken("token.falso")).toBeNull();
+    expect(await verifySessionToken("token.falso")).toBeNull();
   });
 });

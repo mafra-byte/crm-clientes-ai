@@ -21,27 +21,48 @@ function isPublic(pathname: string) {
   return false;
 }
 
-export function middleware(request: NextRequest) {
+function absoluteUrl(request: NextRequest, pathname: string) {
+  const appUrl = process.env.APP_URL?.replace(/\/$/, "");
+  if (appUrl) {
+    return new URL(pathname, `${appUrl}/`);
+  }
+
+  const url = request.nextUrl.clone();
+  const proto =
+    request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ||
+    url.protocol.replace(":", "");
+  const host =
+    request.headers.get("x-forwarded-host")?.split(",")[0]?.trim() ||
+    request.headers.get("host") ||
+    url.host;
+  url.protocol = `${proto}:`;
+  url.host = host;
+  url.pathname = pathname;
+  url.search = "";
+  return url;
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (isPublic(pathname)) {
     if (pathname === "/login") {
       const token = request.cookies.get(SESSION_COOKIE)?.value;
-      if (verifySessionToken(token)) {
-        return NextResponse.redirect(new URL("/clientes", request.url));
+      if (await verifySessionToken(token)) {
+        return NextResponse.redirect(absoluteUrl(request, "/clientes"));
       }
     }
     return NextResponse.next();
   }
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
-  const session = verifySessionToken(token);
+  const session = await verifySessionToken(token);
 
   if (!session) {
     if (pathname.startsWith("/api/")) {
       return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
     }
-    const loginUrl = new URL("/login", request.url);
+    const loginUrl = absoluteUrl(request, "/login");
     loginUrl.searchParams.set("next", pathname);
     return NextResponse.redirect(loginUrl);
   }

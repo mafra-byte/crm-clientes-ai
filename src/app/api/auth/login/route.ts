@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const token = createSessionToken(username);
+  const token = await createSessionToken(username);
   const response = NextResponse.json({
     ok: true,
     username,
