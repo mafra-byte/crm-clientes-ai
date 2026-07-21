@@ -48,6 +48,7 @@ export function ProdutosView() {
   const [error, setError] = useState("");
   const [meta, setMeta] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [tesList, setTesList] = useState<TesOption[]>([]);
   const [saving, setSaving] = useState(false);
@@ -111,18 +112,43 @@ export function ProdutosView() {
       });
   }, [reloadKey]);
 
-  async function onCreate(event: FormEvent) {
+  function openCreate() {
+    setEditingKey(null);
+    setForm(emptyForm);
+    setShowForm(true);
+    setSaveMsg("");
+    setError("");
+  }
+
+  function startEdit(item: Product) {
+    setEditingKey(item.code);
+    setForm({
+      code: item.code,
+      description: item.description ?? "",
+      type: item.type ?? "PA",
+      unit: item.unit ?? "UN",
+      warehouse: item.warehouse ?? "01",
+      group: item.group ?? "0001",
+      price: item.price ? String(item.price) : "",
+      entryTes: item.entryTes ?? "001",
+    });
+    setShowForm(true);
+    setSaveMsg("");
+    setError("");
+  }
+
+  async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     setSaveMsg("");
     setError("");
     try {
       const res = await fetch("/api/products/live", {
-        method: "POST",
+        method: editingKey ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
-          code: form.code || undefined,
+          code: editingKey || form.code || undefined,
           price: form.price === "" ? undefined : Number(form.price),
           entryTes: form.entryTes || "001",
         }),
@@ -132,8 +158,13 @@ export function ProdutosView() {
         setError(data.error || "Falha ao gravar produto");
         return;
       }
-      setSaveMsg(`Produto ${data.product.code} gravado no Protheus.`);
+      setSaveMsg(
+        editingKey
+          ? `Produto ${data.product.code} atualizado no Protheus.`
+          : `Produto ${data.product.code} gravado no Protheus.`,
+      );
       setForm(emptyForm);
+      setEditingKey(null);
       setShowForm(false);
       setReloadKey((n) => n + 1);
     } catch {
@@ -161,9 +192,13 @@ export function ProdutosView() {
           <button
             type="button"
             onClick={() => {
-              setShowForm((v) => !v);
-              setSaveMsg("");
-              setError("");
+              if (showForm) {
+                setShowForm(false);
+                setEditingKey(null);
+                setForm(emptyForm);
+              } else {
+                openCreate();
+              }
             }}
             className="self-start rounded-md bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white"
           >
@@ -180,15 +215,16 @@ export function ProdutosView() {
 
       {showForm ? (
         <form
-          onSubmit={onCreate}
+          onSubmit={onSubmit}
           className="space-y-4 rounded-xl border border-[var(--line)] bg-white/90 p-5"
         >
           <h2 className="font-[family-name:var(--font-display)] text-xl">
-            Novo produto
+            {editingKey ? `Editar produto ${editingKey}` : "Novo produto"}
           </h2>
           <p className="text-sm text-[var(--muted)]">
-            Grava direto na tabela SB1 do Protheus. Se o código ficar em branco,
-            o sistema gera automaticamente.
+            {editingKey
+              ? "Atualiza o registro na tabela SB1 do Protheus."
+              : "Grava direto na tabela SB1 do Protheus. Se o código ficar em branco, o sistema gera automaticamente."}
           </p>
           <div className="grid gap-3 md:grid-cols-2">
             <label className="text-sm">
@@ -196,11 +232,12 @@ export function ProdutosView() {
               <input
                 value={form.code}
                 maxLength={15}
+                disabled={Boolean(editingKey)}
                 onChange={(e) =>
                   setForm({ ...form, code: e.target.value.toUpperCase() })
                 }
                 placeholder="Ex.: PA0009"
-                className="w-full rounded-md border border-[var(--line)] px-3 py-2"
+                className="w-full rounded-md border border-[var(--line)] px-3 py-2 disabled:bg-[#f3f7fb]"
               />
             </label>
             <label className="text-sm">
@@ -299,7 +336,11 @@ export function ProdutosView() {
             </button>
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={() => {
+                setShowForm(false);
+                setEditingKey(null);
+                setForm(emptyForm);
+              }}
               className="rounded-md border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold"
             >
               Cancelar
@@ -330,18 +371,19 @@ export function ProdutosView() {
               <th className="px-4 py-3 font-semibold">TES</th>
               <th className="px-4 py-3 font-semibold">Grupo</th>
               <th className="px-4 py-3 font-semibold">Preço</th>
+              <th className="px-4 py-3 font-semibold" />
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
                   Carregando…
                 </td>
               </tr>
             ) : products.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
                   Nenhum produto encontrado.
                 </td>
               </tr>
@@ -369,6 +411,15 @@ export function ProdutosView() {
                   </td>
                   <td className="px-4 py-3 font-medium">
                     {formatMoney(item.price)}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      type="button"
+                      onClick={() => startEdit(item)}
+                      className="text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                    >
+                      Editar
+                    </button>
                   </td>
                 </tr>
               ))

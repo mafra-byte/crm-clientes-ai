@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isProtheusPgConfigured } from "@/lib/protheus/pg-shared";
-import { createSc7InPg, fetchSc7FromPg } from "@/lib/protheus/sc7";
+import { createSc7InPg, fetchSc7FromPg, updateSc7InPg } from "@/lib/protheus/sc7";
 
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q")?.trim().toLowerCase() ?? "";
@@ -82,6 +82,59 @@ export async function POST(request: NextRequest) {
           error instanceof Error
             ? error.message
             : "Falha ao gravar pedido de compras",
+      },
+      { status: 400 },
+    );
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  if (!isProtheusPgConfigured()) {
+    return NextResponse.json(
+      {
+        error:
+          "Gravação no Protheus exige PROTHEUS_PG_* no .env (PostgreSQL SC7).",
+      },
+      { status: 400 },
+    );
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+  }
+
+  const number = String(body.number ?? "").trim();
+  const item = String(body.item ?? "").trim();
+  if (!number || !item) {
+    return NextResponse.json(
+      { error: "Informe número e item do pedido" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const updated = await updateSc7InPg({
+      number,
+      item,
+      quantity: Number(body.quantity),
+      unitPrice: Number(body.unitPrice ?? body.price),
+      notes: body.notes ? String(body.notes) : undefined,
+      needDate: body.needDate ? String(body.needDate) : undefined,
+      tes: body.tes ? String(body.tes) : undefined,
+      description: body.description ? String(body.description) : undefined,
+      warehouse: body.warehouse ? String(body.warehouse) : undefined,
+    });
+    return NextResponse.json({ ok: true, source: "protheus-pg", ...updated });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Falha ao atualizar pedido de compras",
       },
       { status: 400 },
     );

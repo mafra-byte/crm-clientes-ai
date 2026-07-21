@@ -21,6 +21,7 @@ type Line = {
   tes?: string | null;
   emission: string | null;
   needDate: string | null;
+  notes?: string | null;
   closed?: boolean;
 };
 
@@ -57,6 +58,7 @@ type FormState = {
   quoteKey: string;
   notes: string;
   tes: string;
+  needDate: string;
 };
 
 const emptyForm: FormState = {
@@ -72,6 +74,7 @@ const emptyForm: FormState = {
   quoteKey: "",
   notes: "",
   tes: "001",
+  needDate: "",
 };
 
 export function PedidosCompraView() {
@@ -87,6 +90,7 @@ export function PedidosCompraView() {
   const [error, setError] = useState("");
   const [meta, setMeta] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
@@ -244,30 +248,74 @@ export function PedidosCompraView() {
     });
   }
 
-  async function onCreate(event: FormEvent) {
+  function openCreate() {
+    setEditingKey(null);
+    setForm(emptyForm);
+    setShowForm(true);
+    setSaveMsg("");
+    setError("");
+  }
+
+  function startEdit(line: Line) {
+    if (line.closed) return;
+    setEditingKey(`${line.number}|${line.item}`);
+    setForm({
+      productCode: line.productCode,
+      supplierCode: line.supplierCode,
+      quantity: String(line.quantity || 1),
+      unitPrice: String(line.unitPrice || ""),
+      purchaseRequestNumber: line.purchaseRequestNumber || "",
+      purchaseRequestItem: "",
+      quoteNumber: line.quoteNumber || "",
+      quoteItem: "",
+      quoteProposal: "",
+      quoteKey: "",
+      notes: line.notes ?? "",
+      tes: line.tes || "001",
+      needDate: line.needDate ?? "",
+    });
+    setShowForm(true);
+    setSaveMsg("");
+    setError("");
+  }
+
+  async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     setSaveMsg("");
     setError("");
     try {
       const supplier = suppliers.find((s) => s.code === form.supplierCode);
+      const [number, item] = editingKey ? editingKey.split("|") : ["", ""];
       const res = await fetch("/api/purchase-orders/live", {
-        method: "POST",
+        method: editingKey ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productCode: form.productCode,
-          supplierCode: form.supplierCode,
-          supplierStore: supplier?.store || "01",
-          quantity: Number(form.quantity),
-          unitPrice: Number(form.unitPrice),
-          purchaseRequestNumber: form.purchaseRequestNumber || undefined,
-          purchaseRequestItem: form.purchaseRequestItem || undefined,
-          quoteNumber: form.quoteNumber || undefined,
-          quoteItem: form.quoteItem || undefined,
-          quoteProposal: form.quoteProposal || undefined,
-          tes: form.tes || undefined,
-          notes: form.notes || undefined,
-        }),
+        body: JSON.stringify(
+          editingKey
+            ? {
+                number,
+                item,
+                quantity: Number(form.quantity),
+                unitPrice: Number(form.unitPrice),
+                tes: form.tes || undefined,
+                notes: form.notes || undefined,
+                needDate: form.needDate || undefined,
+              }
+            : {
+                productCode: form.productCode,
+                supplierCode: form.supplierCode,
+                supplierStore: supplier?.store || "01",
+                quantity: Number(form.quantity),
+                unitPrice: Number(form.unitPrice),
+                purchaseRequestNumber: form.purchaseRequestNumber || undefined,
+                purchaseRequestItem: form.purchaseRequestItem || undefined,
+                quoteNumber: form.quoteNumber || undefined,
+                quoteItem: form.quoteItem || undefined,
+                quoteProposal: form.quoteProposal || undefined,
+                tes: form.tes || undefined,
+                notes: form.notes || undefined,
+              },
+        ),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -275,9 +323,12 @@ export function PedidosCompraView() {
         return;
       }
       setSaveMsg(
-        `Pedido ${data.line.number} item ${data.line.item} gravado no Protheus.`,
+        editingKey
+          ? `Pedido ${data.line.number} item ${data.line.item} atualizado no Protheus.`
+          : `Pedido ${data.line.number} item ${data.line.item} gravado no Protheus.`,
       );
       setForm(emptyForm);
+      setEditingKey(null);
       setShowForm(false);
       setReloadKey((n) => n + 1);
     } catch {
@@ -305,9 +356,13 @@ export function PedidosCompraView() {
           <button
             type="button"
             onClick={() => {
-              setShowForm((v) => !v);
-              setSaveMsg("");
-              setError("");
+              if (showForm) {
+                setShowForm(false);
+                setEditingKey(null);
+                setForm(emptyForm);
+              } else {
+                openCreate();
+              }
             }}
             className="self-start rounded-md bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white"
           >
@@ -324,42 +379,49 @@ export function PedidosCompraView() {
 
       {showForm ? (
         <form
-          onSubmit={onCreate}
+          onSubmit={onSubmit}
           className="space-y-4 rounded-xl border border-[var(--line)] bg-white/90 p-5"
         >
           <h2 className="font-[family-name:var(--font-display)] text-xl">
-            Novo pedido
+            {editingKey
+              ? `Editar pedido ${editingKey.replace("|", "/")}`
+              : "Novo pedido"}
           </h2>
           <p className="text-sm text-[var(--muted)]">
-            Gera número de PC automaticamente. Pode partir de uma cotação.
+            {editingKey
+              ? "Atualiza quantidade, preço e TES do pedido aberto."
+              : "Gera número de PC automaticamente. Pode partir de uma cotação."}
           </p>
           <div className="grid gap-3 md:grid-cols-2">
-            <label className="text-sm md:col-span-2">
-              <span className="mb-1 block text-[var(--muted)]">
-                Origem (cotação — opcional)
-              </span>
-              <select
-                value={form.quoteKey}
-                onChange={(e) => onQuoteChange(e.target.value)}
-                className="w-full rounded-md border border-[var(--line)] px-3 py-2"
-              >
-                <option value="">Sem vínculo com cotação</option>
-                {quotes.map((quote) => (
-                  <option
-                    key={`${quote.number}-${quote.item}-${quote.proposal}`}
-                    value={`${quote.number}|${quote.item}|${quote.proposal}`}
-                  >
-                    Cot {quote.number}/{quote.item} P{quote.proposal} —{" "}
-                    {quote.productCode} · {quote.supplierCode}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {!editingKey ? (
+              <label className="text-sm md:col-span-2">
+                <span className="mb-1 block text-[var(--muted)]">
+                  Origem (cotação — opcional)
+                </span>
+                <select
+                  value={form.quoteKey}
+                  onChange={(e) => onQuoteChange(e.target.value)}
+                  className="w-full rounded-md border border-[var(--line)] px-3 py-2"
+                >
+                  <option value="">Sem vínculo com cotação</option>
+                  {quotes.map((quote) => (
+                    <option
+                      key={`${quote.number}-${quote.item}-${quote.proposal}`}
+                      value={`${quote.number}|${quote.item}|${quote.proposal}`}
+                    >
+                      Cot {quote.number}/{quote.item} P{quote.proposal} —{" "}
+                      {quote.productCode} · {quote.supplierCode}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label className="text-sm md:col-span-2">
               <span className="mb-1 block text-[var(--muted)]">Produto *</span>
               <select
                 required
                 value={form.productCode}
+                disabled={Boolean(editingKey)}
                 onChange={(e) => {
                   const code = e.target.value;
                   const product = products.find((p) => p.code === code);
@@ -369,7 +431,7 @@ export function PedidosCompraView() {
                     tes: product?.entryTes || form.tes || "001",
                   });
                 }}
-                className="w-full rounded-md border border-[var(--line)] px-3 py-2"
+                className="w-full rounded-md border border-[var(--line)] px-3 py-2 disabled:bg-[#f3f7fb]"
               >
                 <option value="">Selecione…</option>
                 {products.map((p) => (
@@ -384,10 +446,11 @@ export function PedidosCompraView() {
               <select
                 required
                 value={form.supplierCode}
+                disabled={Boolean(editingKey)}
                 onChange={(e) =>
                   setForm({ ...form, supplierCode: e.target.value })
                 }
-                className="w-full rounded-md border border-[var(--line)] px-3 py-2"
+                className="w-full rounded-md border border-[var(--line)] px-3 py-2 disabled:bg-[#f3f7fb]"
               >
                 <option value="">Selecione…</option>
                 {suppliers.map((s) => (
@@ -441,7 +504,22 @@ export function PedidosCompraView() {
                 )}
               </select>
             </label>
-            <label className="text-sm md:col-span-2">
+            {editingKey ? (
+              <label className="text-sm">
+                <span className="mb-1 block text-[var(--muted)]">Necessidade</span>
+                <input
+                  type="date"
+                  value={form.needDate}
+                  onChange={(e) =>
+                    setForm({ ...form, needDate: e.target.value })
+                  }
+                  className="w-full rounded-md border border-[var(--line)] px-3 py-2"
+                />
+              </label>
+            ) : null}
+            <label
+              className={`text-sm ${editingKey ? "" : "md:col-span-2"}`}
+            >
               <span className="mb-1 block text-[var(--muted)]">Observação</span>
               <input
                 value={form.notes}
@@ -461,7 +539,11 @@ export function PedidosCompraView() {
             </button>
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={() => {
+                setShowForm(false);
+                setEditingKey(null);
+                setForm(emptyForm);
+              }}
               className="rounded-md border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold"
             >
               Cancelar
@@ -493,18 +575,19 @@ export function PedidosCompraView() {
               <th className="px-4 py-3 font-semibold">Total</th>
               <th className="px-4 py-3 font-semibold">Entrega</th>
               <th className="px-4 py-3 font-semibold">Status</th>
+              <th className="px-4 py-3 font-semibold" />
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={8} className="px-4 py-8 text-[var(--muted)]">
                   Carregando…
                 </td>
               </tr>
             ) : lines.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={8} className="px-4 py-8 text-[var(--muted)]">
                   Nenhum pedido encontrado.
                 </td>
               </tr>
@@ -549,6 +632,17 @@ export function PedidosCompraView() {
                   </td>
                   <td className="px-4 py-3 text-xs">
                     {line.closed ? "Baixado" : "Aberto"}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {!line.closed ? (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(line)}
+                        className="text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                      >
+                        Editar
+                      </button>
+                    ) : null}
                   </td>
                 </tr>
               ))

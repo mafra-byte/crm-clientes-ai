@@ -57,6 +57,7 @@ export function SolicitacoesCompraView() {
   const [error, setError] = useState("");
   const [meta, setMeta] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
@@ -134,24 +135,62 @@ export function SolicitacoesCompraView() {
     });
   }
 
-  async function onCreate(event: FormEvent) {
+  function openCreate() {
+    setEditingKey(null);
+    setForm(emptyForm);
+    setShowForm(true);
+    setSaveMsg("");
+    setError("");
+  }
+
+  function startEdit(line: Line) {
+    if (line.closed) return;
+    setEditingKey(`${line.number}|${line.item}`);
+    setForm({
+      productCode: line.productCode,
+      quantity: String(line.quantity || 1),
+      unitPrice: line.unitPrice ? String(line.unitPrice) : "",
+      requester: line.requester ?? "Admin",
+      notes: line.notes ?? "",
+      needDate: line.needDate ?? "",
+    });
+    setShowForm(true);
+    setSaveMsg("");
+    setError("");
+  }
+
+  async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     setSaveMsg("");
     setError("");
     try {
+      const [number, item] = editingKey ? editingKey.split("|") : ["", ""];
       const res = await fetch("/api/purchase-requests/live", {
-        method: "POST",
+        method: editingKey ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productCode: form.productCode,
-          quantity: Number(form.quantity),
-          unitPrice:
-            form.unitPrice === "" ? undefined : Number(form.unitPrice),
-          requester: form.requester,
-          notes: form.notes,
-          needDate: form.needDate || undefined,
-        }),
+        body: JSON.stringify(
+          editingKey
+            ? {
+                number,
+                item,
+                quantity: Number(form.quantity),
+                unitPrice:
+                  form.unitPrice === "" ? undefined : Number(form.unitPrice),
+                requester: form.requester,
+                notes: form.notes,
+                needDate: form.needDate || undefined,
+              }
+            : {
+                productCode: form.productCode,
+                quantity: Number(form.quantity),
+                unitPrice:
+                  form.unitPrice === "" ? undefined : Number(form.unitPrice),
+                requester: form.requester,
+                notes: form.notes,
+                needDate: form.needDate || undefined,
+              },
+        ),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -159,9 +198,12 @@ export function SolicitacoesCompraView() {
         return;
       }
       setSaveMsg(
-        `SC ${data.line.number} item ${data.line.item} gravada no Protheus.`,
+        editingKey
+          ? `SC ${data.line.number} item ${data.line.item} atualizada no Protheus.`
+          : `SC ${data.line.number} item ${data.line.item} gravada no Protheus.`,
       );
       setForm(emptyForm);
+      setEditingKey(null);
       setShowForm(false);
       setReloadKey((n) => n + 1);
     } catch {
@@ -189,9 +231,13 @@ export function SolicitacoesCompraView() {
           <button
             type="button"
             onClick={() => {
-              setShowForm((v) => !v);
-              setSaveMsg("");
-              setError("");
+              if (showForm) {
+                setShowForm(false);
+                setEditingKey(null);
+                setForm(emptyForm);
+              } else {
+                openCreate();
+              }
             }}
             className="self-start rounded-md bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white"
           >
@@ -208,14 +254,18 @@ export function SolicitacoesCompraView() {
 
       {showForm ? (
         <form
-          onSubmit={onCreate}
+          onSubmit={onSubmit}
           className="space-y-4 rounded-xl border border-[var(--line)] bg-white/90 p-5"
         >
           <h2 className="font-[family-name:var(--font-display)] text-xl">
-            Nova solicitação
+            {editingKey
+              ? `Editar solicitação ${editingKey.replace("|", "/")}`
+              : "Nova solicitação"}
           </h2>
           <p className="text-sm text-[var(--muted)]">
-            Gera número de SC automaticamente e grava o item na tabela SC1.
+            {editingKey
+              ? "Atualiza quantidade, preço e dados da SC aberta."
+              : "Gera número de SC automaticamente e grava o item na tabela SC1."}
           </p>
           <div className="grid gap-3 md:grid-cols-2">
             <label className="text-sm md:col-span-2">
@@ -223,8 +273,9 @@ export function SolicitacoesCompraView() {
               <select
                 required
                 value={form.productCode}
+                disabled={Boolean(editingKey)}
                 onChange={(e) => onProductChange(e.target.value)}
-                className="w-full rounded-md border border-[var(--line)] px-3 py-2"
+                className="w-full rounded-md border border-[var(--line)] px-3 py-2 disabled:bg-[#f3f7fb]"
               >
                 <option value="">Selecione…</option>
                 {products.map((p) => (
@@ -294,7 +345,11 @@ export function SolicitacoesCompraView() {
             </button>
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={() => {
+                setShowForm(false);
+                setEditingKey(null);
+                setForm(emptyForm);
+              }}
               className="rounded-md border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold"
             >
               Cancelar
@@ -326,18 +381,19 @@ export function SolicitacoesCompraView() {
               <th className="px-4 py-3 font-semibold">Solicitante</th>
               <th className="px-4 py-3 font-semibold">Necessidade</th>
               <th className="px-4 py-3 font-semibold">Status</th>
+              <th className="px-4 py-3 font-semibold" />
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={8} className="px-4 py-8 text-[var(--muted)]">
                   Carregando…
                 </td>
               </tr>
             ) : lines.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={8} className="px-4 py-8 text-[var(--muted)]">
                   Nenhuma solicitação encontrada.
                 </td>
               </tr>
@@ -379,6 +435,17 @@ export function SolicitacoesCompraView() {
                         ? `Fechada · PC ${line.purchaseOrderNumber}`
                         : `Fechada · Cot. ${line.quoteNumber}`
                       : "Aberta"}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {!line.closed ? (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(line)}
+                        className="text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                      >
+                        Editar
+                      </button>
+                    ) : null}
                   </td>
                 </tr>
               ))

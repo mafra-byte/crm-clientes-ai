@@ -15,6 +15,13 @@ type Client = {
   totalSpent: number;
   lastOrderAt: string | null;
   protheusCode: string | null;
+  tradeName?: string | null;
+  address?: string | null;
+  district?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  personType?: string | null;
 };
 
 type Mode = "live" | "local";
@@ -55,6 +62,7 @@ export function ClientesView() {
   const [error, setError] = useState("");
   const [meta, setMeta] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
@@ -106,16 +114,50 @@ export function ClientesView() {
     };
   }, [loadClients, reloadKey]);
 
-  async function onCreate(event: FormEvent) {
+  function openCreate() {
+    setEditingKey(null);
+    setForm(emptyForm);
+    setShowForm(true);
+    setSaveMsg("");
+    setError("");
+  }
+
+  function startEdit(client: Client) {
+    const code = client.protheusCode;
+    if (!code) return;
+    setEditingKey(code);
+    setForm({
+      name: client.name ?? "",
+      tradeName: client.tradeName ?? "",
+      document: client.document ?? "",
+      email: client.email ?? "",
+      phone: client.phone ?? "",
+      address: client.address ?? "",
+      district: client.district ?? "",
+      city: client.city ?? "",
+      state: client.state ?? "",
+      zip: client.zip ?? "",
+      personType: client.personType === "F" ? "F" : "J",
+    });
+    setShowForm(true);
+    setSaveMsg("");
+    setError("");
+  }
+
+  async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     setSaveMsg("");
     setError("");
     try {
       const res = await fetch("/api/clients/live", {
-        method: "POST",
+        method: editingKey ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(
+          editingKey
+            ? { ...form, code: editingKey, protheusCode: editingKey }
+            : form,
+        ),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -123,9 +165,12 @@ export function ClientesView() {
         return;
       }
       setSaveMsg(
-        `Cliente ${data.client.protheusCode}/${data.client.store} gravado no Protheus.`,
+        editingKey
+          ? `Cliente ${data.client.protheusCode}/${data.client.store} atualizado no Protheus.`
+          : `Cliente ${data.client.protheusCode}/${data.client.store} gravado no Protheus.`,
       );
       setForm(emptyForm);
+      setEditingKey(null);
       setShowForm(false);
       setMode("live");
       setReloadKey((n) => n + 1);
@@ -177,9 +222,13 @@ export function ClientesView() {
             <button
               type="button"
               onClick={() => {
-                setShowForm((v) => !v);
-                setSaveMsg("");
-                setError("");
+                if (showForm) {
+                  setShowForm(false);
+                  setEditingKey(null);
+                  setForm(emptyForm);
+                } else {
+                  openCreate();
+                }
               }}
               className="rounded-md bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white"
             >
@@ -197,14 +246,16 @@ export function ClientesView() {
 
       {showForm ? (
         <form
-          onSubmit={onCreate}
+          onSubmit={onSubmit}
           className="space-y-4 rounded-xl border border-[var(--line)] bg-white/90 p-5"
         >
           <h2 className="font-[family-name:var(--font-display)] text-xl">
-            Novo cliente
+            {editingKey ? `Editar cliente ${editingKey}` : "Novo cliente"}
           </h2>
           <p className="text-sm text-[var(--muted)]">
-            Grava direto na tabela SA1 do Protheus. Código gerado automaticamente.
+            {editingKey
+              ? "Atualiza o registro na tabela SA1 do Protheus."
+              : "Grava direto na tabela SA1 do Protheus. Código gerado automaticamente."}
           </p>
           <div className="grid gap-3 md:grid-cols-2">
             <label className="text-sm md:col-span-2">
@@ -319,7 +370,11 @@ export function ClientesView() {
             </button>
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={() => {
+                setShowForm(false);
+                setEditingKey(null);
+                setForm(emptyForm);
+              }}
               className="rounded-md border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold"
             >
               Cancelar
@@ -351,18 +406,19 @@ export function ClientesView() {
               <th className="px-4 py-3 font-semibold">Pedidos</th>
               <th className="px-4 py-3 font-semibold">Total</th>
               <th className="px-4 py-3 font-semibold">Último pedido</th>
+              <th className="px-4 py-3 font-semibold" />
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={8} className="px-4 py-8 text-[var(--muted)]">
                   Carregando…
                 </td>
               </tr>
             ) : clients.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={8} className="px-4 py-8 text-[var(--muted)]">
                   Nenhum cliente encontrado.
                 </td>
               </tr>
@@ -399,6 +455,17 @@ export function ClientesView() {
                   </td>
                   <td className="px-4 py-3 text-[var(--muted)]">
                     {formatDate(client.lastOrderAt)}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {client.protheusCode ? (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(client)}
+                        className="text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                      >
+                        Editar
+                      </button>
+                    ) : null}
                   </td>
                 </tr>
               ))

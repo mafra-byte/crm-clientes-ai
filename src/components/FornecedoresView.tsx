@@ -11,6 +11,12 @@ type Supplier = {
   store: string | null;
   source: string;
   protheusCode: string | null;
+  tradeName?: string | null;
+  address?: string | null;
+  district?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
 };
 
 type FormState = {
@@ -46,6 +52,7 @@ export function FornecedoresView() {
   const [error, setError] = useState("");
   const [meta, setMeta] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
@@ -89,16 +96,49 @@ export function FornecedoresView() {
     };
   }, [load, reloadKey]);
 
-  async function onCreate(event: FormEvent) {
+  function openCreate() {
+    setEditingKey(null);
+    setForm(emptyForm);
+    setShowForm(true);
+    setSaveMsg("");
+    setError("");
+  }
+
+  function startEdit(item: Supplier) {
+    const code = item.protheusCode;
+    if (!code) return;
+    setEditingKey(code);
+    setForm({
+      name: item.name ?? "",
+      tradeName: item.tradeName ?? "",
+      document: item.document ?? "",
+      email: item.email ?? "",
+      phone: item.phone ?? "",
+      address: item.address ?? "",
+      district: item.district ?? "",
+      city: item.city ?? "",
+      state: item.state ?? "",
+      zip: item.zip ?? "",
+    });
+    setShowForm(true);
+    setSaveMsg("");
+    setError("");
+  }
+
+  async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     setSaveMsg("");
     setError("");
     try {
       const res = await fetch("/api/suppliers/live", {
-        method: "POST",
+        method: editingKey ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(
+          editingKey
+            ? { ...form, code: editingKey, protheusCode: editingKey }
+            : form,
+        ),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -106,9 +146,12 @@ export function FornecedoresView() {
         return;
       }
       setSaveMsg(
-        `Fornecedor ${data.supplier.protheusCode}/${data.supplier.store} gravado no Protheus.`,
+        editingKey
+          ? `Fornecedor ${data.supplier.protheusCode}/${data.supplier.store} atualizado no Protheus.`
+          : `Fornecedor ${data.supplier.protheusCode}/${data.supplier.store} gravado no Protheus.`,
       );
       setForm(emptyForm);
+      setEditingKey(null);
       setShowForm(false);
       setReloadKey((n) => n + 1);
     } catch {
@@ -136,9 +179,13 @@ export function FornecedoresView() {
           <button
             type="button"
             onClick={() => {
-              setShowForm((v) => !v);
-              setSaveMsg("");
-              setError("");
+              if (showForm) {
+                setShowForm(false);
+                setEditingKey(null);
+                setForm(emptyForm);
+              } else {
+                openCreate();
+              }
             }}
             className="self-start rounded-md bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white"
           >
@@ -155,14 +202,16 @@ export function FornecedoresView() {
 
       {showForm ? (
         <form
-          onSubmit={onCreate}
+          onSubmit={onSubmit}
           className="space-y-4 rounded-xl border border-[var(--line)] bg-white/90 p-5"
         >
           <h2 className="font-[family-name:var(--font-display)] text-xl">
-            Novo fornecedor
+            {editingKey ? `Editar fornecedor ${editingKey}` : "Novo fornecedor"}
           </h2>
           <p className="text-sm text-[var(--muted)]">
-            Grava direto na tabela SA2 do Protheus. Código gerado automaticamente.
+            {editingKey
+              ? "Atualiza o registro na tabela SA2 do Protheus."
+              : "Grava direto na tabela SA2 do Protheus. Código gerado automaticamente."}
           </p>
           <div className="grid gap-3 md:grid-cols-2">
             <label className="text-sm md:col-span-2">
@@ -261,7 +310,11 @@ export function FornecedoresView() {
             </button>
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={() => {
+                setShowForm(false);
+                setEditingKey(null);
+                setForm(emptyForm);
+              }}
               className="rounded-md border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold"
             >
               Cancelar
@@ -290,18 +343,19 @@ export function FornecedoresView() {
               <th className="px-4 py-3 font-semibold">Contato</th>
               <th className="px-4 py-3 font-semibold">Documento</th>
               <th className="px-4 py-3 font-semibold">Origem</th>
+              <th className="px-4 py-3 font-semibold" />
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={5} className="px-4 py-8 text-[var(--muted)]">
                   Carregando…
                 </td>
               </tr>
             ) : suppliers.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={5} className="px-4 py-8 text-[var(--muted)]">
                   Nenhum fornecedor encontrado.
                 </td>
               </tr>
@@ -327,6 +381,17 @@ export function FornecedoresView() {
                     {item.document ?? "—"}
                   </td>
                   <td className="px-4 py-3">Protheus</td>
+                  <td className="px-4 py-3 text-right">
+                    {item.protheusCode ? (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(item)}
+                        className="text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                      >
+                        Editar
+                      </button>
+                    ) : null}
+                  </td>
                 </tr>
               ))
             )}

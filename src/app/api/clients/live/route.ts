@@ -15,6 +15,7 @@ import {
   createSa1ClientInPg,
   fetchSa1ClientsFromPg,
   isProtheusPgConfigured,
+  updateSa1ClientInPg,
 } from "@/lib/protheus/pg";
 import { getValidConnection } from "@/lib/protheus/sync";
 import { prisma } from "@/lib/db";
@@ -215,6 +216,92 @@ export async function POST(request: NextRequest) {
       {
         error:
           error instanceof Error ? error.message : "Falha ao gravar cliente",
+      },
+      { status: 400 },
+    );
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  if (!isProtheusPgConfigured()) {
+    return NextResponse.json(
+      {
+        error:
+          "Gravação no Protheus exige PROTHEUS_PG_* no .env (PostgreSQL SA1).",
+      },
+      { status: 400 },
+    );
+  }
+
+  let body: Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "JSON inválido" }, { status: 400 });
+  }
+
+  const code = String(body.code ?? body.protheusCode ?? "").trim();
+  if (!code) {
+    return NextResponse.json(
+      { error: "Informe o código do cliente (code)" },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const updated = await updateSa1ClientInPg({
+      code,
+      name: String(body.name ?? ""),
+      tradeName: body.tradeName ? String(body.tradeName) : undefined,
+      document: body.document ? String(body.document) : undefined,
+      email: body.email ? String(body.email) : undefined,
+      phone: body.phone ? String(body.phone) : undefined,
+      address: body.address ? String(body.address) : undefined,
+      district: body.district ? String(body.district) : undefined,
+      city: body.city ? String(body.city) : undefined,
+      state: body.state ? String(body.state) : undefined,
+      zip: body.zip ? String(body.zip) : undefined,
+      store: body.store ? String(body.store) : undefined,
+      personType:
+        body.personType === "F" || body.personType === "J"
+          ? body.personType
+          : undefined,
+      customerType: body.customerType ? String(body.customerType) : undefined,
+    });
+
+    try {
+      await prisma.client.upsert({
+        where: { protheusCode: updated.client.protheusCode! },
+        create: {
+          protheusCode: updated.client.protheusCode,
+          name: updated.client.name,
+          email: updated.client.email,
+          phone: updated.client.phone,
+          document: updated.client.document,
+          store: updated.client.store,
+          source: "protheus",
+        },
+        update: {
+          name: updated.client.name,
+          email: updated.client.email,
+          phone: updated.client.phone,
+          document: updated.client.document,
+          store: updated.client.store,
+          source: "protheus",
+        },
+      });
+    } catch {
+      /* cache opcional */
+    }
+
+    return NextResponse.json({ ok: true, source: "protheus-pg", ...updated });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Falha ao atualizar cliente",
       },
       { status: 400 },
     );

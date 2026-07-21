@@ -22,6 +22,7 @@ type Line = {
   validUntil: string | null;
   deliveryDays: number;
   purchaseOrderNumber: string | null;
+  notes?: string | null;
   closed: boolean;
 };
 
@@ -67,6 +68,7 @@ export function CotacoesCompraView() {
   const [error, setError] = useState("");
   const [meta, setMeta] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
@@ -185,28 +187,76 @@ export function CotacoesCompraView() {
     });
   }
 
-  async function onCreate(event: FormEvent) {
+  function openCreate() {
+    setEditingKey(null);
+    setForm(emptyForm);
+    setShowForm(true);
+    setSaveMsg("");
+    setError("");
+  }
+
+  function startEdit(line: Line) {
+    if (line.closed) return;
+    setEditingKey(`${line.number}|${line.item}|${line.proposal}`);
+    setForm({
+      productCode: line.productCode,
+      supplierCode: line.supplierCode,
+      quantity: String(line.quantity || 1),
+      unitPrice: String(line.unitPrice || ""),
+      purchaseRequestNumber: line.purchaseRequestNumber || "",
+      purchaseRequestItem: "",
+      deliveryDays: String(line.deliveryDays ?? 7),
+      notes: line.notes ?? "",
+    });
+    setShowForm(true);
+    setSaveMsg("");
+    setError("");
+  }
+
+  async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     setSaveMsg("");
     setError("");
     try {
       const supplier = suppliers.find((s) => s.code === form.supplierCode);
+      const [number, item, proposal] = editingKey
+        ? editingKey.split("|")
+        : ["", "", ""];
       const res = await fetch("/api/purchase-quotes/live", {
-        method: "POST",
+        method: editingKey ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productCode: form.productCode,
-          supplierCode: form.supplierCode,
-          supplierStore: supplier?.store || "01",
-          quantity: Number(form.quantity),
-          unitPrice: Number(form.unitPrice),
-          purchaseRequestNumber: form.purchaseRequestNumber || undefined,
-          purchaseRequestItem: form.purchaseRequestItem || undefined,
-          deliveryDays:
-            form.deliveryDays === "" ? undefined : Number(form.deliveryDays),
-          notes: form.notes || undefined,
-        }),
+        body: JSON.stringify(
+          editingKey
+            ? {
+                number,
+                item,
+                proposal,
+                supplierCode: form.supplierCode,
+                supplierStore: supplier?.store || "01",
+                quantity: Number(form.quantity),
+                unitPrice: Number(form.unitPrice),
+                deliveryDays:
+                  form.deliveryDays === ""
+                    ? undefined
+                    : Number(form.deliveryDays),
+                notes: form.notes || undefined,
+              }
+            : {
+                productCode: form.productCode,
+                supplierCode: form.supplierCode,
+                supplierStore: supplier?.store || "01",
+                quantity: Number(form.quantity),
+                unitPrice: Number(form.unitPrice),
+                purchaseRequestNumber: form.purchaseRequestNumber || undefined,
+                purchaseRequestItem: form.purchaseRequestItem || undefined,
+                deliveryDays:
+                  form.deliveryDays === ""
+                    ? undefined
+                    : Number(form.deliveryDays),
+                notes: form.notes || undefined,
+              },
+        ),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -214,9 +264,12 @@ export function CotacoesCompraView() {
         return;
       }
       setSaveMsg(
-        `Cotação ${data.line.number} item ${data.line.item} / proposta ${data.line.proposal} gravada.`,
+        editingKey
+          ? `Cotação ${data.line.number} item ${data.line.item} / proposta ${data.line.proposal} atualizada.`
+          : `Cotação ${data.line.number} item ${data.line.item} / proposta ${data.line.proposal} gravada.`,
       );
       setForm(emptyForm);
+      setEditingKey(null);
       setShowForm(false);
       setReloadKey((n) => n + 1);
     } catch {
@@ -244,9 +297,13 @@ export function CotacoesCompraView() {
           <button
             type="button"
             onClick={() => {
-              setShowForm((v) => !v);
-              setSaveMsg("");
-              setError("");
+              if (showForm) {
+                setShowForm(false);
+                setEditingKey(null);
+                setForm(emptyForm);
+              } else {
+                openCreate();
+              }
             }}
             className="self-start rounded-md bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white"
           >
@@ -263,49 +320,57 @@ export function CotacoesCompraView() {
 
       {showForm ? (
         <form
-          onSubmit={onCreate}
+          onSubmit={onSubmit}
           className="space-y-4 rounded-xl border border-[var(--line)] bg-white/90 p-5"
         >
           <h2 className="font-[family-name:var(--font-display)] text-xl">
-            Nova cotação
+            {editingKey
+              ? `Editar cotação ${editingKey.split("|").slice(0, 2).join("/")}`
+              : "Nova cotação"}
           </h2>
           <p className="text-sm text-[var(--muted)]">
-            Gera número de cotação e grava proposta do fornecedor na SC8.
+            {editingKey
+              ? "Atualiza proposta aberta na SC8."
+              : "Gera número de cotação e grava proposta do fornecedor na SC8."}
           </p>
           <div className="grid gap-3 md:grid-cols-2">
-            <label className="text-sm md:col-span-2">
-              <span className="mb-1 block text-[var(--muted)]">
-                Origem (SC — opcional)
-              </span>
-              <select
-                value={
-                  form.purchaseRequestNumber
-                    ? `${form.purchaseRequestNumber}|${form.purchaseRequestItem}`
-                    : ""
-                }
-                onChange={(e) => onScChange(e.target.value)}
-                className="w-full rounded-md border border-[var(--line)] px-3 py-2"
-              >
-                <option value="">Sem vínculo com SC</option>
-                {scs.map((sc) => (
-                  <option
-                    key={`${sc.number}-${sc.item}`}
-                    value={`${sc.number}|${sc.item}`}
-                  >
-                    SC {sc.number}/{sc.item} — {sc.productCode} · {sc.description}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {!editingKey ? (
+              <label className="text-sm md:col-span-2">
+                <span className="mb-1 block text-[var(--muted)]">
+                  Origem (SC — opcional)
+                </span>
+                <select
+                  value={
+                    form.purchaseRequestNumber
+                      ? `${form.purchaseRequestNumber}|${form.purchaseRequestItem}`
+                      : ""
+                  }
+                  onChange={(e) => onScChange(e.target.value)}
+                  className="w-full rounded-md border border-[var(--line)] px-3 py-2"
+                >
+                  <option value="">Sem vínculo com SC</option>
+                  {scs.map((sc) => (
+                    <option
+                      key={`${sc.number}-${sc.item}`}
+                      value={`${sc.number}|${sc.item}`}
+                    >
+                      SC {sc.number}/{sc.item} — {sc.productCode} ·{" "}
+                      {sc.description}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label className="text-sm md:col-span-2">
               <span className="mb-1 block text-[var(--muted)]">Produto *</span>
               <select
                 required
                 value={form.productCode}
+                disabled={Boolean(editingKey)}
                 onChange={(e) =>
                   setForm({ ...form, productCode: e.target.value })
                 }
-                className="w-full rounded-md border border-[var(--line)] px-3 py-2"
+                className="w-full rounded-md border border-[var(--line)] px-3 py-2 disabled:bg-[#f3f7fb]"
               >
                 <option value="">Selecione…</option>
                 {products.map((p) => (
@@ -388,7 +453,11 @@ export function CotacoesCompraView() {
             </button>
             <button
               type="button"
-              onClick={() => setShowForm(false)}
+              onClick={() => {
+                setShowForm(false);
+                setEditingKey(null);
+                setForm(emptyForm);
+              }}
               className="rounded-md border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold"
             >
               Cancelar
@@ -420,18 +489,19 @@ export function CotacoesCompraView() {
               <th className="px-4 py-3 font-semibold">Preço</th>
               <th className="px-4 py-3 font-semibold">Total</th>
               <th className="px-4 py-3 font-semibold">Status</th>
+              <th className="px-4 py-3 font-semibold" />
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={8} className="px-4 py-8 text-[var(--muted)]">
                   Carregando…
                 </td>
               </tr>
             ) : lines.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={8} className="px-4 py-8 text-[var(--muted)]">
                   Nenhuma cotação encontrada.
                 </td>
               </tr>
@@ -475,6 +545,17 @@ export function CotacoesCompraView() {
                     {line.closed
                       ? `Fechada · PC ${line.purchaseOrderNumber}`
                       : "Aberta"}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {!line.closed ? (
+                      <button
+                        type="button"
+                        onClick={() => startEdit(line)}
+                        className="text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                      >
+                        Editar
+                      </button>
+                    ) : null}
                   </td>
                 </tr>
               ))

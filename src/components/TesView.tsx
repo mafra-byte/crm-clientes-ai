@@ -46,6 +46,7 @@ export function TesView() {
   const [error, setError] = useState("");
   const [meta, setMeta] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [editingKey, setEditingKey] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
@@ -89,24 +90,58 @@ export function TesView() {
     };
   }, [load, reloadKey]);
 
-  async function onCreate(event: FormEvent) {
+  function openCreate() {
+    setEditingKey(null);
+    setForm(emptyForm);
+    setShowForm(true);
+    setSaveMsg("");
+    setError("");
+  }
+
+  function startEdit(line: Line) {
+    setEditingKey(line.code);
+    setForm({
+      code: line.code,
+      type: line.type === "S" ? "S" : "E",
+      text: line.text ?? "",
+      cfop: line.cfop ?? "",
+      updatesStock: Boolean(line.updatesStock),
+      generatesDuplicate: Boolean(line.generatesDuplicate),
+      calculatesIcms: Boolean(line.calculatesIcms),
+      creditIcms: Boolean(line.creditIcms),
+      purpose: line.purpose ?? "",
+    });
+    setShowForm(true);
+    setSaveMsg("");
+    setError("");
+  }
+
+  async function onSubmit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
     setSaveMsg("");
     setError("");
     try {
       const res = await fetch("/api/tes/live", {
-        method: "POST",
+        method: editingKey ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          code: editingKey || form.code || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "Falha ao gravar TES");
         return;
       }
-      setSaveMsg(`TES ${data.line.code} gravada · CFOP ${data.line.cfop}.`);
+      setSaveMsg(
+        editingKey
+          ? `TES ${data.line.code} atualizada · CFOP ${data.line.cfop}.`
+          : `TES ${data.line.code} gravada · CFOP ${data.line.cfop}.`,
+      );
       setForm(emptyForm);
+      setEditingKey(null);
       setShowForm(false);
       setReloadKey((n) => n + 1);
     } catch {
@@ -135,9 +170,13 @@ export function TesView() {
           <button
             type="button"
             onClick={() => {
-              setShowForm((v) => !v);
-              setSaveMsg("");
-              setError("");
+              if (showForm) {
+                setShowForm(false);
+                setEditingKey(null);
+                setForm(emptyForm);
+              } else {
+                openCreate();
+              }
             }}
             className="self-start rounded-md bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-white"
           >
@@ -154,15 +193,21 @@ export function TesView() {
 
       {showForm ? (
         <form
-          onSubmit={onCreate}
+          onSubmit={onSubmit}
           className="grid gap-3 rounded-xl border border-[var(--line)] bg-white/80 p-4 sm:grid-cols-2 lg:grid-cols-4"
         >
+          <div className="sm:col-span-2 lg:col-span-4">
+            <h2 className="font-[family-name:var(--font-display)] text-xl">
+              {editingKey ? `Editar TES ${editingKey}` : "Nova TES"}
+            </h2>
+          </div>
           <label className="space-y-1 text-sm">
             <span className="text-[var(--muted)]">Código (opcional)</span>
             <input
               value={form.code}
+              disabled={Boolean(editingKey)}
               onChange={(e) => setForm({ ...form, code: e.target.value })}
-              className="w-full rounded-lg border border-[var(--line)] px-3 py-2"
+              className="w-full rounded-lg border border-[var(--line)] px-3 py-2 disabled:bg-[#f3f7fb]"
               placeholder="Ex.: 005"
             />
           </label>
@@ -251,13 +296,24 @@ export function TesView() {
               className="w-full rounded-lg border border-[var(--line)] px-3 py-2"
             />
           </label>
-          <div className="sm:col-span-4">
+          <div className="flex flex-wrap gap-3 sm:col-span-4">
             <button
               type="submit"
               disabled={saving}
               className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
             >
               {saving ? "Gravando…" : "Salvar TES"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowForm(false);
+                setEditingKey(null);
+                setForm(emptyForm);
+              }}
+              className="rounded-lg border border-[var(--line)] bg-white px-4 py-2 text-sm font-medium"
+            >
+              Cancelar
             </button>
           </div>
         </form>
@@ -285,18 +341,19 @@ export function TesView() {
               <th className="px-4 py-3 font-semibold">Estoque</th>
               <th className="px-4 py-3 font-semibold">Dupl.</th>
               <th className="px-4 py-3 font-semibold">ICMS</th>
+              <th className="px-4 py-3 font-semibold" />
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={8} className="px-4 py-8 text-[var(--muted)]">
                   Carregando…
                 </td>
               </tr>
             ) : lines.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
+                <td colSpan={8} className="px-4 py-8 text-[var(--muted)]">
                   Nenhuma TES em sf4990.
                 </td>
               </tr>
@@ -325,6 +382,15 @@ export function TesView() {
                   <td className="px-4 py-3 text-[var(--muted)]">
                     {line.calculatesIcms ? "Calc." : "—"}
                     {line.creditIcms ? " · crédito" : ""}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <button
+                      type="button"
+                      onClick={() => startEdit(line)}
+                      className="text-xs font-medium text-[var(--accent)] underline-offset-2 hover:underline"
+                    >
+                      Editar
+                    </button>
                   </td>
                 </tr>
               ))
