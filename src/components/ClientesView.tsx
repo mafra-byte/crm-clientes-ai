@@ -17,22 +17,40 @@ type Client = {
   protheusCode: string | null;
 };
 
+type Mode = "live" | "local";
+
 export function ClientesView() {
   const [q, setQ] = useState("");
+  const [mode, setMode] = useState<Mode>("live");
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [meta, setMeta] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       setLoading(true);
+      setError("");
       try {
-        const res = await fetch(
-          `/api/clients${q ? `?q=${encodeURIComponent(q)}` : ""}`,
-          { signal: controller.signal },
-        );
+        const endpoint =
+          mode === "live"
+            ? `/api/clients/live${q ? `?q=${encodeURIComponent(q)}` : ""}`
+            : `/api/clients${q ? `?q=${encodeURIComponent(q)}` : ""}`;
+        const res = await fetch(endpoint, { signal: controller.signal });
         const data = await res.json();
+        if (!res.ok) {
+          setClients([]);
+          setError(data.error || "Falha ao carregar clientes");
+          setMeta("");
+          return;
+        }
         setClients(data.clients ?? []);
+        setMeta(
+          mode === "live"
+            ? `Ao vivo · empresa ${data.empresa ?? "99"} / filial ${data.filial ?? "01"}`
+            : "Cache local (SQLite)",
+        );
       } catch {
         /* aborted or network */
       } finally {
@@ -44,7 +62,7 @@ export function ClientesView() {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [q]);
+  }, [q, mode]);
 
   return (
     <div className="space-y-6">
@@ -54,16 +72,51 @@ export function ClientesView() {
             Clientes
           </h1>
           <p className="mt-1 text-[var(--muted)]">
-            Cadastros SA1 sincronizados do Protheus e registros locais.
+            Cadastro SA1 via API REST do Protheus.
           </p>
+          {meta ? (
+            <p className="mt-1 text-xs text-[var(--accent)]">{meta}</p>
+          ) : null}
         </div>
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar por nome, código, documento…"
-          className="w-full rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm md:max-w-sm"
-        />
+        <div className="flex w-full flex-col gap-2 md:max-w-md">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setMode("live")}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium ${
+                mode === "live"
+                  ? "bg-[var(--accent)] text-white"
+                  : "bg-white/80 text-[var(--muted)]"
+              }`}
+            >
+              Ao vivo (API)
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("local")}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium ${
+                mode === "local"
+                  ? "bg-[var(--accent)] text-white"
+                  : "bg-white/80 text-[var(--muted)]"
+              }`}
+            >
+              Cache local
+            </button>
+          </div>
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Buscar por nome, código, documento…"
+            className="w-full rounded-md border border-[var(--line)] bg-white px-3 py-2 text-sm"
+          />
+        </div>
       </section>
+
+      {error ? (
+        <p className="rounded-md border border-[#fecaca] bg-[#fef2f2] px-4 py-3 text-sm text-[var(--danger)]">
+          {error}
+        </p>
+      ) : null}
 
       <div className="overflow-hidden rounded-xl border border-[var(--line)] bg-white/90">
         <table className="min-w-full text-left text-sm">
@@ -88,8 +141,10 @@ export function ClientesView() {
             ) : clients.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
-                  Nenhum cliente encontrado. Conecte o Protheus e sincronize
-                  clientes.
+                  Nenhum cliente encontrado.
+                  {mode === "live"
+                    ? " Verifique a conexão REST em Protheus ou use o cache local."
+                    : " Conecte o Protheus e sincronize clientes."}
                 </td>
               </tr>
             ) : (
@@ -113,7 +168,11 @@ export function ClientesView() {
                   <td className="px-4 py-3 text-[var(--muted)]">
                     {client.document ?? "—"}
                   </td>
-                  <td className="px-4 py-3">{sourceLabel(client.source)}</td>
+                  <td className="px-4 py-3">
+                    {client.source === "protheus-live"
+                      ? "Protheus (ao vivo)"
+                      : sourceLabel(client.source)}
+                  </td>
                   <td className="px-4 py-3">{client.totalOrders}</td>
                   <td className="px-4 py-3 font-medium">
                     {formatMoney(client.totalSpent)}

@@ -4,11 +4,23 @@ CRM de clientes com integração REST ao Protheus (OAuth password grant, cliente
 
 ## O que está incluso
 
+- Login do portal (cookie de sessão) em `/login`
+- Listagem de clientes **ao vivo** via REST (`/api/clients/live`) + cache local
 - Autenticação no REST Adapter (`/api/oauth2/v1/token`)
 - Teste de conexão e sessão com refresh de token
 - Sincronização de clientes e pedidos para o CRM
 - Painel com clientes, pedidos e status da integração
 - Paths configuráveis por ambiente (`.env`)
+
+### Login do portal
+
+```env
+PORTAL_USERNAME=Admin
+PORTAL_PASSWORD=Protheus.123
+PORTAL_SESSION_SECRET=troque-este-segredo
+```
+
+Abra `/login`. Também aceita as credenciais `PROTHEUS_USERNAME` / `PROTHEUS_PASSWORD`.
 
 ## Setup rápido
 

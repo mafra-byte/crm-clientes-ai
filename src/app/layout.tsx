@@ -15,10 +15,10 @@ const sans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Protheus — CRM com ERP TOTVS",
+  title: "Protheus — Portal CRM via API",
   description:
-    "CRM de clientes com integração REST ao Protheus: autenticação OAuth, clientes e pedidos.",
-};
+    "Portal CRM com login e integração REST ao Protheus: clientes ao vivo, pedidos e sync.",
+}
 
 export default function RootLayout({
   children,
