@@ -74,16 +74,19 @@ sozinha a mensagem “SO não homologado”.
 | Sync error WebSocket | Não apareceu nesta trava REST |
 
 **Conclusão do passo 1:** falhou (trava ≠ 502).  
-**Conclusão para passo 2 (contêiner OL8):** **ainda não autorizado pela
-verificação “homologado”** — montar contêiner agora pode ser a solução
-errada (mesmo erro da madrugada perseguindo licença).
+**Conclusão para passo 2 (contêiner OL8):** **bloqueado pela ETAPA 0.**
 
-Próximo barato antes do contêiner (se aprovado):
+Roteiro completo: [`INSTALACAO_OL8_CONTAINER.md`](./INSTALACAO_OL8_CONTAINER.md).
 
-1. Investigar Ctree no HTTPJOB (`LocalFiles`, arquivos locais do job REST)
-2. Capturar `error.log` **durante** uma trava nova (não só console.log)
-3. Só então OL8 container **se** aparecer “não homologado” ou Ctree
-   continuar irrecuperável no host
+ETAPA 0 refeita (exata do roteiro, ~17:12 BRT): grep → **nada** →
+interpretação oficial = *REST não está nem tentando / investigar PrepareIn*
+→ **não montar contêiner**.
+
+Próximo barato (sem contêiner):
+
+1. Investigar PrepareIn `99,01` e pool `HTTPURI@99|FALSE`
+2. Investigar Ctree 738 nos jobs REST (`LocalFiles=CTREE`)
+3. Só retomar ETAPA 1 (snapshot + OL8) se aparecer `não homologado`
 
 ## O que funciona hoje
 
