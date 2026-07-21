@@ -7,6 +7,7 @@ const nav = [
   { href: "/", label: "Painel" },
   { href: "/clientes", label: "Clientes" },
   { href: "/fornecedores", label: "Fornecedores" },
+  { href: "/produtos", label: "Produtos" },
   { href: "/pedidos", label: "Pedidos" },
   { href: "/integracoes", label: "Protheus" },
 ];
