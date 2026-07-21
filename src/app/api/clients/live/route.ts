@@ -9,12 +9,18 @@ import {
   fetchCustomers,
   ProtheusApiError,
 } from "@/lib/protheus/client";
-import { getProtheusConfig } from "@/lib/protheus/config";
+import { getProtheusConfig, isDemoMode } from "@/lib/protheus/config";
+import { listDemoClientsLive } from "@/lib/protheus/demo";
 import { getValidConnection } from "@/lib/protheus/sync";
 
 export async function GET(request: NextRequest) {
   const q = request.nextUrl.searchParams.get("q")?.trim().toLowerCase() ?? "";
   const pageSize = Number(request.nextUrl.searchParams.get("pageSize") ?? 50);
+
+  if (isDemoMode()) {
+    const payload = await listDemoClientsLive(q);
+    return NextResponse.json(payload);
+  }
 
   try {
     const config = getProtheusConfig();

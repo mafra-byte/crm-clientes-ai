@@ -28,12 +28,13 @@ Portas ERP/License bloqueadas de fora via iptables; acesso público só via ngin
 - REST (login): https://protheus.ccskf.net/rest/
 - License monitor (localhost): http://127.0.0.1:8020/
 
-### Portal CRM via API (próximo passo)
+### Portal CRM via API
 
-1. Login em `/login` (`PORTAL_USERNAME` / `PORTAL_PASSWORD`, padrão Admin / Protheus.123).
-2. Clientes ao vivo: `/clientes` → modo **Ao vivo (API)** chama `GET /api/clients/live`.
-3. Cadastros seguintes: fornecedores → produtos → plano de contas.
-4. WebApp fica só para configuração/ERP (SIGACFG), não como acesso principal.
+1. Login em `/login` (`Admin` / `Protheus.123`).
+2. Com `PROTHEUS_DEMO_MODE=true` + `npm run db:seed`: painel, clientes e pedidos prontos para demo comercial.
+3. Clientes ao vivo: `/clientes` → **Ao vivo (API)** (`GET /api/clients/live`).
+4. Cadastros seguintes: fornecedores → produtos → plano de contas.
+5. WebApp fica só para configuração/ERP (SIGACFG), não como acesso principal.
 
 ### Nginx (HTTPS / acesso remoto)
 

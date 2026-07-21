@@ -48,8 +48,8 @@ export function ClientesView() {
         setClients(data.clients ?? []);
         setMeta(
           mode === "live"
-            ? `Ao vivo · empresa ${data.empresa ?? "99"} / filial ${data.filial ?? "01"}`
-            : "Cache local (SQLite)",
+            ? `${data.demo ? "Demo" : "Ao vivo"} · empresa ${data.empresa ?? "99"} / filial ${data.filial ?? "01"}`
+            : "Cache local",
         );
       } catch {
         /* aborted or network */
@@ -142,9 +142,6 @@ export function ClientesView() {
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-[var(--muted)]">
                   Nenhum cliente encontrado.
-                  {mode === "live"
-                    ? " Verifique a conexão REST em Protheus ou use o cache local."
-                    : " Conecte o Protheus e sincronize clientes."}
                 </td>
               </tr>
             ) : (

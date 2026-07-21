@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { isDemoMode } from "@/lib/protheus/config";
+import { demoSync } from "@/lib/protheus/demo";
 import { syncCustomers, syncOrders } from "@/lib/protheus/sync";
 
 export async function POST(request: NextRequest) {
@@ -8,6 +10,11 @@ export async function POST(request: NextRequest) {
       type?: "customers" | "orders" | "all";
     };
     const type = body.type ?? "all";
+
+    if (isDemoMode()) {
+      const result = await demoSync(type);
+      return NextResponse.json({ type, demo: true, ...result });
+    }
 
     if (type === "customers") {
       const result = await syncCustomers();

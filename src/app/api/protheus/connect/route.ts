@@ -1,8 +1,28 @@
 import { NextResponse } from "next/server";
+import { isDemoMode } from "@/lib/protheus/config";
+import { ensureDemoConnection } from "@/lib/protheus/demo";
 import { ensureConnectionFromEnv, getValidConnection } from "@/lib/protheus/sync";
 
 export async function POST() {
   try {
+    if (isDemoMode()) {
+      const connection = await ensureDemoConnection();
+      return NextResponse.json({
+        ok: true,
+        demo: true,
+        connected: true,
+        connection: {
+          id: connection.id,
+          label: connection.label,
+          baseUrl: connection.baseUrl,
+          empresa: connection.empresa,
+          filial: connection.filial,
+          username: connection.username,
+          expiresAt: connection.expiresAt,
+        },
+      });
+    }
+
     const seeded = await ensureConnectionFromEnv();
     if (!seeded) {
       return NextResponse.json(

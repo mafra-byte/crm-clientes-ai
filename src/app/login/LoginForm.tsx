@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const next = searchParams.get("next") || "/clientes";
+  const next = searchParams.get("next") || "/";
 
   const [username, setUsername] = useState("Admin");
   const [password, setPassword] = useState("");
@@ -46,6 +46,9 @@ export default function LoginForm() {
         <div className="brand-underline mt-2 h-[3px] w-20 rounded-full bg-[var(--accent)]" />
         <p className="mt-4 text-sm text-[var(--muted)]">
           Portal CRM via API REST — empresa 99.
+        </p>
+        <p className="mt-2 text-xs text-[var(--muted)]">
+          Demo: usuário <strong>Admin</strong> · senha <strong>Protheus.123</strong>
         </p>
 
         <form onSubmit={onSubmit} className="mt-8 space-y-4">

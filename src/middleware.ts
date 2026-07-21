@@ -49,7 +49,7 @@ export async function middleware(request: NextRequest) {
     if (pathname === "/login") {
       const token = request.cookies.get(SESSION_COOKIE)?.value;
       if (await verifySessionToken(token)) {
-        return NextResponse.redirect(absoluteUrl(request, "/clientes"));
+        return NextResponse.redirect(absoluteUrl(request, "/"));
       }
     }
     return NextResponse.next();

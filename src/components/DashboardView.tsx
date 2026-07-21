@@ -11,6 +11,7 @@ type DashboardData = {
     orders: number;
     revenue: number;
     connected: boolean;
+    demo?: boolean;
     empresa: string | null;
     filial: string | null;
     label: string | null;
@@ -62,26 +63,28 @@ export function DashboardView() {
     return <p className="text-[var(--muted)]">Carregando painel…</p>;
   }
 
+  const subtitle = data.stats.demo
+    ? `Ambiente de demonstração · empresa ${data.stats.empresa ?? "99"} / filial ${data.stats.filial ?? "01"}`
+    : data.stats.connected
+      ? `Conectado · empresa ${data.stats.empresa} / filial ${data.stats.filial}`
+      : "Conecte o Protheus para importar clientes e pedidos do ERP.";
+
   return (
     <div className="space-y-8">
       <section>
         <h1 className="font-[family-name:var(--font-display)] text-2xl md:text-3xl">
           Painel
         </h1>
-        <p className="mt-1 text-[var(--muted)]">
-          {data.stats.connected
-            ? `Conectado · empresa ${data.stats.empresa} / filial ${data.stats.filial}`
-            : "Conecte o Protheus para importar clientes e pedidos do ERP."}
-        </p>
+        <p className="mt-1 text-[var(--muted)]">{subtitle}</p>
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Stat label="Clientes" value={String(data.stats.clients)} />
         <Stat label="Pedidos" value={String(data.stats.orders)} />
-        <Stat label="Receita sync" value={formatMoney(data.stats.revenue)} />
+        <Stat label="Receita importada" value={formatMoney(data.stats.revenue)} />
         <Stat
           label="Protheus"
-          value={data.stats.connected ? "Ativo" : "Pendente"}
+          value={data.stats.demo ? "Demo" : data.stats.connected ? "Ativo" : "Pendente"}
           hint={
             data.recentSync?.message
               ? `${data.recentSync.message} · ${formatDate(data.recentSync.createdAt)}`
@@ -90,14 +93,14 @@ export function DashboardView() {
         />
       </section>
 
-      {!data.stats.connected ? (
+      {!data.stats.connected && !data.stats.demo ? (
         <section className="rounded-xl border border-[var(--line)] bg-[var(--accent-soft)] p-6">
           <h2 className="font-[family-name:var(--font-display)] text-xl">
             Comece pela integração
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">
-            Informe a URL do REST Adapter, usuário e senha no `.env` e autentique
-            o ambiente Protheus para puxar SA1 e pedidos de venda.
+            Conecte o REST Adapter do Protheus para trazer clientes e pedidos
+            automaticamente para o portal.
           </p>
           <Link
             href="/integracoes"
@@ -105,6 +108,33 @@ export function DashboardView() {
           >
             Configurar Protheus
           </Link>
+        </section>
+      ) : null}
+
+      {data.stats.demo ? (
+        <section className="rounded-xl border border-[var(--line)] bg-[var(--accent-soft)] p-6">
+          <h2 className="font-[family-name:var(--font-display)] text-xl">
+            Roteiro rápido da demo
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">
+            Mostre o painel com números reais, abra Clientes e Pedidos, depois
+            a tela Protheus para simular teste e sincronização — tudo sem
+            depender do ERP no ar.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-3">
+            <Link
+              href="/clientes"
+              className="inline-flex rounded-md bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white"
+            >
+              Ver clientes
+            </Link>
+            <Link
+              href="/pedidos"
+              className="inline-flex rounded-md border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold"
+            >
+              Ver pedidos
+            </Link>
+          </div>
         </section>
       ) : null}
 

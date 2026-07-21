@@ -1,3 +1,7 @@
+export function isDemoMode() {
+  return process.env.PROTHEUS_DEMO_MODE === "true";
+}
+
 export function getProtheusConfig() {
   const baseUrl = (process.env.PROTHEUS_BASE_URL ?? "").replace(/\/$/, "");
   const username = process.env.PROTHEUS_USERNAME ?? "";
@@ -10,6 +14,7 @@ export function getProtheusConfig() {
   const customersPath = process.env.PROTHEUS_CUSTOMERS_PATH ?? "/clientes";
   const ordersPath = process.env.PROTHEUS_ORDERS_PATH ?? "/pedidos";
   const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+  const demoMode = isDemoMode();
 
   return {
     baseUrl,
@@ -23,6 +28,7 @@ export function getProtheusConfig() {
     customersPath,
     ordersPath,
     appUrl,
-    isConfigured: Boolean(baseUrl && username && password),
+    demoMode,
+    isConfigured: demoMode || Boolean(baseUrl && username && password),
   };
 }

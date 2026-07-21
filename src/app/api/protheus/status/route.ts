@@ -23,6 +23,7 @@ export async function GET() {
   return NextResponse.json({
     configured: config.isConfigured,
     connected,
+    demo: config.demoMode,
     connection: connection
       ? {
           id: connection.id,

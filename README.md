@@ -5,6 +5,7 @@ CRM de clientes com integração REST ao Protheus (OAuth password grant, cliente
 ## O que está incluso
 
 - Login do portal (cookie de sessão) em `/login`
+- **Modo demo comercial** (`PROTHEUS_DEMO_MODE=true`) com dados seed
 - Listagem de clientes **ao vivo** via REST (`/api/clients/live`) + cache local
 - Autenticação no REST Adapter (`/api/oauth2/v1/token`)
 - Teste de conexão e sessão com refresh de token
@@ -21,6 +22,19 @@ PORTAL_SESSION_SECRET=troque-este-segredo
 ```
 
 Abra `/login`. Também aceita as credenciais `PROTHEUS_USERNAME` / `PROTHEUS_PASSWORD`.
+
+### Demo para vendas
+
+```env
+PROTHEUS_DEMO_MODE=true
+```
+
+```bash
+npm run db:seed
+```
+
+Roteiro sugerido: Login → Painel → Clientes → Pedidos → Protheus (testar / sincronizar).
+Em demo, as ações de integração não dependem do REST real.
 
 ## Setup rápido
 

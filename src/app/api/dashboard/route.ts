@@ -35,6 +35,7 @@ export async function GET() {
       orders,
       revenue: revenue._sum.totalAmount ?? 0,
       connected,
+      demo: process.env.PROTHEUS_DEMO_MODE === "true",
       empresa: connection?.empresa ?? null,
       filial: connection?.filial ?? null,
       label: connection?.label ?? null,

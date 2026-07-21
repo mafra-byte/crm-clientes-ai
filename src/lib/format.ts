@@ -37,6 +37,7 @@ export function statusLabel(status: string) {
 
 export function sourceLabel(source: string) {
   if (source === "protheus") return "Protheus";
+  if (source === "protheus-live") return "Protheus (ao vivo)";
   if (source === "manual") return "Manual";
   return source;
 }

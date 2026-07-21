@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/format";
 type StatusResponse = {
   configured: boolean;
   connected: boolean;
+  demo?: boolean;
   connection: {
     id: string;
     label: string;
@@ -64,7 +65,11 @@ export function IntegracoesView() {
       const res = await fetch("/api/protheus/test", { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Falha no teste");
-      setMessage("Conexão autenticada com sucesso.");
+      setMessage(
+        data.demo
+          ? "Demo: autenticação simulada com sucesso."
+          : "Conexão autenticada com sucesso.",
+      );
     });
   }
 
@@ -73,7 +78,11 @@ export function IntegracoesView() {
       const res = await fetch("/api/protheus/connect", { method: "POST" });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Falha ao conectar");
-      setMessage("Ambiente Protheus conectado.");
+      setMessage(
+        data.demo
+          ? "Demo: ambiente Protheus conectado."
+          : "Ambiente Protheus conectado.",
+      );
     });
   }
 
@@ -89,10 +98,12 @@ export function IntegracoesView() {
 
       if (type === "all") {
         setMessage(
-          `Sync concluída: ${data.customers} clientes e ${data.orders} pedidos.`,
+          `${data.demo ? "Demo · " : ""}Sincronização: ${data.customers} clientes e ${data.orders} pedidos.`,
         );
       } else {
-        setMessage(`Sincronização concluída: ${data.imported} registros.`);
+        setMessage(
+          `${data.demo ? "Demo · " : ""}Sincronização concluída: ${data.imported} registros.`,
+        );
       }
     });
   }
@@ -115,8 +126,9 @@ export function IntegracoesView() {
           Protheus
         </h1>
         <p className="mt-1 max-w-2xl text-[var(--muted)]">
-          Autentique no REST Adapter TOTVS, teste a conexão e sincronize
-          clientes (SA1) e pedidos de venda.
+          {status?.demo
+            ? "Modo demonstração: teste, conexão e sincronização funcionam com dados de amostra."
+            : "Autentique no REST Adapter TOTVS, teste a conexão e sincronize clientes e pedidos."}
         </p>
       </section>
 
@@ -231,7 +243,7 @@ export function IntegracoesView() {
                       onClick={() => sync("customers")}
                       className="rounded-md border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-60"
                     >
-                      Só clientes
+                      Clientes
                     </button>
                     <button
                       type="button"
@@ -239,7 +251,7 @@ export function IntegracoesView() {
                       onClick={() => sync("orders")}
                       className="rounded-md border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold disabled:opacity-60"
                     >
-                      Só pedidos
+                      Pedidos
                     </button>
                     <button
                       type="button"
@@ -258,26 +270,33 @@ export function IntegracoesView() {
 
         <div className="rounded-xl border border-[var(--line)] bg-white/90 p-6">
           <h2 className="font-[family-name:var(--font-display)] text-xl">
-            Endpoints usados
+            {status.demo ? "O que a integração entrega" : "Endpoints usados"}
           </h2>
-          <ol className="mt-4 list-decimal space-y-3 pl-5 text-sm text-[var(--muted)]">
-            <li>
-              Token OAuth password grant em <code>{status.paths.token}</code>
-            </li>
-            <li>
-              Clientes via <code>{status.paths.customers}</code>
-            </li>
-            <li>
-              Pedidos via <code>{status.paths.orders}</code>
-            </li>
-            <li>
-              Headers de tenant: <code>tenantId</code>, <code>Company</code>,{" "}
-              <code>Branch</code>
-            </li>
-          </ol>
-          <p className="mt-4 text-sm text-[var(--muted)]">
-            Ajuste os paths no `.env` conforme o Adapter REST do seu ambiente.
-          </p>
+          {status.demo ? (
+            <ul className="mt-4 list-disc space-y-3 pl-5 text-sm text-[var(--muted)]">
+              <li>Login seguro no portal, separado do SmartClient</li>
+              <li>Clientes e pedidos vindos do ERP via API REST</li>
+              <li>Painel comercial para acompanhamento rápido</li>
+              <li>Base pronta para fornecedores, produtos e financeiro</li>
+            </ul>
+          ) : (
+            <>
+              <ol className="mt-4 list-decimal space-y-3 pl-5 text-sm text-[var(--muted)]">
+                <li>
+                  Token OAuth em <code>{status.paths.token}</code>
+                </li>
+                <li>
+                  Clientes via <code>{status.paths.customers}</code>
+                </li>
+                <li>
+                  Pedidos via <code>{status.paths.orders}</code>
+                </li>
+              </ol>
+              <p className="mt-4 text-sm text-[var(--muted)]">
+                Ajuste os paths no `.env` conforme o Adapter REST do ambiente.
+              </p>
+            </>
+          )}
         </div>
       </section>
     </div>
