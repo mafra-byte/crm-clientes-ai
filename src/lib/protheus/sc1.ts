@@ -21,6 +21,18 @@ export type CreateSc1Input = {
   number?: string;
 };
 
+export type UpdateSc1Input = {
+  number: string;
+  item: string;
+  quantity: number;
+  unitPrice?: number;
+  description?: string;
+  notes?: string;
+  requester?: string;
+  needDate?: string;
+  warehouse?: string;
+};
+
 export type ProtheusSc1Line = {
   id: string;
   number: string;
@@ -288,6 +300,143 @@ export async function createSc1InPg(input: CreateSc1Input) {
       purchaseOrderNumber: null,
       purchaseOrderItem: null,
       quantityOrdered: 0,
+      closed: false,
+      source: "protheus-pg",
+    } satisfies ProtheusSc1Line,
+  };
+}
+
+export async function updateSc1InPg(input: UpdateSc1Input) {
+  if (!isProtheusPgConfigured()) {
+    throw new Error("PostgreSQL do Protheus não configurado (PROTHEUS_PG_*)");
+  }
+
+  const number = input.number.trim().replace(/\D/g, "").padStart(6, "0").slice(-6);
+  const item = input.item.trim().replace(/\D/g, "").padStart(4, "0").slice(-4);
+  if (!number) throw new Error("Informe o número da SC");
+  if (!item) throw new Error("Informe o item da SC");
+
+  const quantity = Number(input.quantity);
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    throw new Error("Informe uma quantidade válida");
+  }
+
+  const config = getProtheusConfig();
+  const filial = (config.filial || "01").slice(0, 2).padStart(2, "0");
+  const table = sc1Table();
+  const db = getProtheusPool();
+
+  const current = await db.query<QueryResultRow>(
+    `SELECT c1_produto, c1_descri, c1_um, c1_vunit, c1_local, c1_solicit,
+            c1_obs, c1_emissao, c1_datprf, c1_aprov, c1_cotacao, c1_pedido,
+            c1_itemped, c1_quje
+     FROM ${table}
+     WHERE d_e_l_e_t_ = ' '
+       AND c1_filial = $1
+       AND c1_num = $2
+       AND c1_item = $3
+     LIMIT 1`,
+    [pad(filial, 2), pad(number, 6), pad(item, 4)],
+  );
+  const row = current.rows[0];
+  if (!row) {
+    throw new Error(`Solicitação ${number}/${item} não encontrada`);
+  }
+
+  const quoteNumber = trim(row.c1_cotacao);
+  const purchaseOrderNumber = trim(row.c1_pedido);
+  if (quoteNumber || purchaseOrderNumber) {
+    throw new Error(
+      `Solicitação ${number}/${item} não pode ser editada` +
+        (purchaseOrderNumber
+          ? ` (já gerou pedido ${purchaseOrderNumber})`
+          : ` (já está em cotação ${quoteNumber})`),
+    );
+  }
+
+  const productCode = trim(row.c1_produto);
+  const description = (
+    input.description?.trim() ||
+    trim(row.c1_descri) ||
+    productCode
+  ).slice(0, 50);
+  const unit = trim(row.c1_um) || "UN";
+  const warehouse = (input.warehouse?.trim() || trim(row.c1_local) || "01").slice(
+    0,
+    2,
+  );
+  const unitPrice =
+    typeof input.unitPrice === "number" && Number.isFinite(input.unitPrice)
+      ? input.unitPrice
+      : Number(row.c1_vunit ?? 0) || 0;
+  const total = Math.round(quantity * unitPrice * 100) / 100;
+  const needDate = input.needDate
+    ? toProtheusDate(input.needDate)
+    : trim(row.c1_datprf) || toProtheusDate();
+  const requester = (
+    input.requester?.trim() ||
+    trim(row.c1_solicit) ||
+    "Admin"
+  ).slice(0, 25);
+  const notes =
+    input.notes !== undefined
+      ? (input.notes.trim() || "").slice(0, 30)
+      : (trim(row.c1_obs) || "").slice(0, 30);
+  const emission = trim(row.c1_emissao);
+  const approved = trim(row.c1_aprov) || "L";
+
+  await db.query(
+    `UPDATE ${table}
+     SET c1_descri = $1,
+         c1_quant = $2,
+         c1_vunit = $3,
+         c1_total = $4,
+         c1_local = $5,
+         c1_datprf = $6,
+         c1_solicit = $7,
+         c1_obs = $8
+     WHERE d_e_l_e_t_ = ' '
+       AND c1_filial = $9
+       AND c1_num = $10
+       AND c1_item = $11`,
+    [
+      pad(description, 50),
+      quantity,
+      unitPrice,
+      total,
+      pad(warehouse, 2),
+      pad(needDate, 8),
+      pad(requester, 25),
+      pad(notes, 30),
+      pad(filial, 2),
+      pad(number, 6),
+      pad(item, 4),
+    ],
+  );
+
+  return {
+    empresa: config.empresa,
+    filial,
+    line: {
+      id: `${number}-${item}`,
+      number,
+      item,
+      productCode,
+      description,
+      quantity,
+      unit,
+      unitPrice,
+      total,
+      warehouse,
+      requester,
+      notes: notes || null,
+      emission: formatDateOut(emission),
+      needDate: formatDateOut(needDate),
+      approved,
+      quoteNumber: null,
+      purchaseOrderNumber: null,
+      purchaseOrderItem: trim(row.c1_itemped) || null,
+      quantityOrdered: Number(row.c1_quje ?? 0) || 0,
       closed: false,
       source: "protheus-pg",
     } satisfies ProtheusSc1Line,

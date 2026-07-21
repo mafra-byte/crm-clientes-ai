@@ -30,6 +30,18 @@ export type CreateSc7Input = {
   tes?: string;
 };
 
+export type UpdateSc7Input = {
+  number: string;
+  item: string;
+  quantity: number;
+  unitPrice: number;
+  notes?: string;
+  needDate?: string;
+  tes?: string;
+  description?: string;
+  warehouse?: string;
+};
+
 export type ProtheusSc7Line = {
   id: string;
   number: string;
@@ -440,6 +452,158 @@ export async function createSc7InPg(input: CreateSc7Input) {
       emission: formatDateOut(emission),
       needDate: formatDateOut(needDate),
       approval: "L",
+      closed: false,
+      source: "protheus-pg",
+    } satisfies ProtheusSc7Line,
+  };
+}
+
+export async function updateSc7InPg(input: UpdateSc7Input) {
+  if (!isProtheusPgConfigured()) {
+    throw new Error("PostgreSQL do Protheus não configurado (PROTHEUS_PG_*)");
+  }
+
+  const number = input.number.trim().replace(/\D/g, "").padStart(6, "0").slice(-6);
+  const item = input.item.trim().replace(/\D/g, "").padStart(4, "0").slice(-4);
+  if (!number) throw new Error("Informe o número do pedido");
+  if (!item) throw new Error("Informe o item do pedido");
+
+  const quantity = Number(input.quantity);
+  const unitPrice = Number(input.unitPrice);
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    throw new Error("Informe uma quantidade válida");
+  }
+  if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+    throw new Error("Informe um preço válido");
+  }
+
+  const config = getProtheusConfig();
+  const filial = (config.filial || "01").slice(0, 2).padStart(2, "0");
+  const table = sc7Table();
+  const products = sb1Table();
+  const db = getProtheusPool();
+
+  const current = await db.query<QueryResultRow>(
+    `SELECT c7_produto, c7_descri, c7_um, c7_quant, c7_quje, c7_preco,
+            c7_fornece, c7_loja, c7_local, c7_numsc, c7_itemsc, c7_numcot,
+            c7_emissao, c7_datprf, c7_conapro, c7_encer, c7_tes, c7_obs
+     FROM ${table}
+     WHERE d_e_l_e_t_ = ' '
+       AND c7_filial = $1
+       AND c7_num = $2
+       AND c7_item = $3
+     LIMIT 1`,
+    [pad(filial, 2), pad(number, 6), pad(item, 4)],
+  );
+  const row = current.rows[0];
+  if (!row) {
+    throw new Error(`Pedido ${number}/${item} não encontrado`);
+  }
+
+  const quantityDelivered = Number(row.c7_quje ?? 0) || 0;
+  const encerrado = trim(row.c7_encer).toUpperCase() === "E";
+  const currentQty = Number(row.c7_quant ?? 0) || 0;
+  if (encerrado || (currentQty > 0 && quantityDelivered >= currentQty)) {
+    throw new Error(`Pedido ${number}/${item} está encerrado e não pode ser editado`);
+  }
+  if (quantity < quantityDelivered) {
+    throw new Error(
+      `Quantidade não pode ser menor que a já entregue (${quantityDelivered})`,
+    );
+  }
+
+  const productCode = trim(row.c7_produto);
+  const product = await db.query<QueryResultRow>(
+    `SELECT b1_te FROM ${products}
+     WHERE d_e_l_e_t_ = ' ' AND rtrim(b1_cod) = $1
+     LIMIT 1`,
+    [productCode],
+  );
+
+  const tes = await resolveEntryTes({
+    override: input.tes,
+    orderTes: trim(row.c7_tes),
+    productTes: product.rows[0] ? trim(product.rows[0].b1_te) : null,
+    fallback: "001",
+  });
+
+  const description = (
+    input.description?.trim() ||
+    trim(row.c7_descri) ||
+    productCode
+  ).slice(0, 50);
+  const unit = trim(row.c7_um) || "UN";
+  const warehouse = (
+    input.warehouse?.trim() ||
+    trim(row.c7_local) ||
+    "01"
+  ).slice(0, 2);
+  const total = Math.round(quantity * unitPrice * 100) / 100;
+  const needDate = input.needDate
+    ? toProtheusDate(input.needDate)
+    : trim(row.c7_datprf) || toProtheusDate(undefined, 10);
+  const notes =
+    input.notes !== undefined
+      ? (input.notes.trim() || "").slice(0, 30)
+      : (trim(row.c7_obs) || "").slice(0, 30);
+  const supplierCode = trim(row.c7_fornece);
+  const supplierStore = trim(row.c7_loja) || "01";
+  const emission = trim(row.c7_emissao);
+  const approval = trim(row.c7_conapro) || "L";
+
+  await db.query(
+    `UPDATE ${table}
+     SET c7_descri = $1,
+         c7_quant = $2,
+         c7_preco = $3,
+         c7_total = $4,
+         c7_local = $5,
+         c7_datprf = $6,
+         c7_obs = $7,
+         c7_tes = $8
+     WHERE d_e_l_e_t_ = ' '
+       AND c7_filial = $9
+       AND c7_num = $10
+       AND c7_item = $11`,
+    [
+      pad(description, 50),
+      quantity,
+      unitPrice,
+      total,
+      pad(warehouse, 2),
+      pad(needDate, 8),
+      pad(notes, 30),
+      pad(tes.code, 3),
+      pad(filial, 2),
+      pad(number, 6),
+      pad(item, 4),
+    ],
+  );
+
+  return {
+    empresa: config.empresa,
+    filial,
+    line: {
+      id: `${number}-${item}`,
+      number,
+      item,
+      productCode,
+      description,
+      quantity,
+      quantityDelivered,
+      unit,
+      unitPrice,
+      total,
+      supplierCode,
+      supplierStore,
+      warehouse,
+      purchaseRequestNumber: trim(row.c7_numsc) || null,
+      purchaseRequestItem: trim(row.c7_itemsc) || null,
+      quoteNumber: trim(row.c7_numcot) || null,
+      tes: tes.code,
+      emission: formatDateOut(emission),
+      needDate: formatDateOut(needDate),
+      approval,
       closed: false,
       source: "protheus-pg",
     } satisfies ProtheusSc7Line,

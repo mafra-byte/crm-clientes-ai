@@ -26,6 +26,20 @@ export type CreateSc8Input = {
   number?: string;
 };
 
+export type UpdateSc8Input = {
+  number: string;
+  item: string;
+  proposal?: string;
+  supplierCode?: string;
+  supplierStore?: string;
+  quantity: number;
+  unitPrice: number;
+  notes?: string;
+  deliveryDays?: number;
+  validUntil?: string;
+  description?: string;
+};
+
 export type ProtheusSc8Line = {
   id: string;
   number: string;
@@ -412,6 +426,161 @@ export async function createSc8InPg(input: CreateSc8Input) {
       purchaseRequestItem: itemSc || null,
       purchaseOrderNumber: null,
       purchaseOrderItem: null,
+      emission: formatDateOut(emission),
+      validUntil: formatDateOut(validUntil),
+      deliveryDays,
+      closed: false,
+      source: "protheus-pg",
+    } satisfies ProtheusSc8Line,
+  };
+}
+
+export async function updateSc8InPg(input: UpdateSc8Input) {
+  if (!isProtheusPgConfigured()) {
+    throw new Error("PostgreSQL do Protheus não configurado (PROTHEUS_PG_*)");
+  }
+
+  const number = input.number.trim().replace(/\D/g, "").padStart(6, "0").slice(-6);
+  const item = input.item.trim().replace(/\D/g, "").padStart(4, "0").slice(-4);
+  if (!number) throw new Error("Informe o número da cotação");
+  if (!item) throw new Error("Informe o item da cotação");
+
+  const quantity = Number(input.quantity);
+  const unitPrice = Number(input.unitPrice);
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    throw new Error("Informe uma quantidade válida");
+  }
+  if (!Number.isFinite(unitPrice) || unitPrice < 0) {
+    throw new Error("Informe um preço válido");
+  }
+
+  const config = getProtheusConfig();
+  const filial = (config.filial || "01").slice(0, 2).padStart(2, "0");
+  const table = sc8Table();
+  const db = getProtheusPool();
+  const proposal = (input.proposal?.trim() || "01").padStart(2, "0").slice(-2);
+  const supplierCode = input.supplierCode
+    ? input.supplierCode.trim().padStart(6, "0").slice(-6)
+    : "";
+  const supplierStore = (input.supplierStore?.trim() || "01")
+    .slice(0, 2)
+    .padStart(2, "0");
+
+  let sql = `
+    SELECT c8_num, c8_item, c8_numpro, c8_produto, c8_descri, c8_um,
+           c8_preco, c8_fornece, c8_loja, c8_fornome, c8_numsc, c8_itemsc,
+           c8_numped, c8_itemped, c8_emissao, c8_valida, c8_prazo, c8_obs
+    FROM ${table}
+    WHERE d_e_l_e_t_ = ' '
+      AND c8_filial = $1
+      AND c8_num = $2
+      AND c8_item = $3
+      AND c8_numpro = $4`;
+  const params: Array<string> = [
+    pad(filial, 2),
+    pad(number, 6),
+    pad(item, 4),
+    pad(proposal, 2),
+  ];
+  if (supplierCode) {
+    sql += ` AND c8_fornece = $${params.length + 1} AND c8_loja = $${params.length + 2}`;
+    params.push(pad(supplierCode, 6), pad(supplierStore, 2));
+  }
+  sql += " LIMIT 1";
+
+  const current = await db.query<QueryResultRow>(sql, params);
+  const row = current.rows[0];
+  if (!row) {
+    throw new Error(
+      `Cotação ${number}/${item}/${proposal}${supplierCode ? `/${supplierCode}` : ""} não encontrada`,
+    );
+  }
+
+  const purchaseOrderNumber = trim(row.c8_numped);
+  if (purchaseOrderNumber) {
+    throw new Error(
+      `Cotação ${number}/${item} não pode ser editada (já gerou pedido ${purchaseOrderNumber})`,
+    );
+  }
+
+  const productCode = trim(row.c8_produto);
+  const resolvedSupplierCode = trim(row.c8_fornece);
+  const resolvedSupplierStore = trim(row.c8_loja) || "01";
+  const supplierName = trim(row.c8_fornome) || resolvedSupplierCode;
+  const description = (
+    input.description?.trim() ||
+    trim(row.c8_descri) ||
+    productCode
+  ).slice(0, 50);
+  const unit = trim(row.c8_um) || "UN";
+  const total = Math.round(quantity * unitPrice * 100) / 100;
+  const validUntil = input.validUntil
+    ? toProtheusDate(input.validUntil)
+    : trim(row.c8_valida) || toProtheusDate(undefined, 15);
+  const deliveryDays =
+    typeof input.deliveryDays === "number" && Number.isFinite(input.deliveryDays)
+      ? input.deliveryDays
+      : Number(row.c8_prazo ?? 0) || 0;
+  const notes =
+    input.notes !== undefined
+      ? (input.notes.trim() || "").slice(0, 200)
+      : String(row.c8_obs ?? "").slice(0, 200);
+  const emission = trim(row.c8_emissao);
+
+  await db.query(
+    `UPDATE ${table}
+     SET c8_descri = $1,
+         c8_quant = $2,
+         c8_preco = $3,
+         c8_total = $4,
+         c8_valida = $5,
+         c8_prazo = $6,
+         c8_obs = $7
+     WHERE d_e_l_e_t_ = ' '
+       AND c8_filial = $8
+       AND c8_num = $9
+       AND c8_item = $10
+       AND c8_numpro = $11
+       AND c8_fornece = $12
+       AND c8_loja = $13`,
+    [
+      pad(description, 50),
+      quantity,
+      unitPrice,
+      total,
+      pad(validUntil, 8),
+      deliveryDays,
+      notes,
+      pad(filial, 2),
+      pad(number, 6),
+      pad(item, 4),
+      pad(proposal, 2),
+      pad(resolvedSupplierCode, 6),
+      pad(resolvedSupplierStore, 2),
+    ],
+  );
+
+  return {
+    empresa: config.empresa,
+    filial,
+    line: {
+      id: `${number}-${item}-${proposal}-${resolvedSupplierCode}`,
+      number,
+      item,
+      proposal,
+      productCode,
+      description,
+      quantity,
+      unit,
+      unitPrice,
+      total,
+      supplierCode: resolvedSupplierCode,
+      supplierStore: resolvedSupplierStore,
+      supplierName,
+      purchaseRequestNumber: trim(row.c8_numsc) || null,
+      purchaseRequestItem: trim(row.c8_itemsc) || null,
+      purchaseOrderNumber: null,
+      purchaseOrderItem: trim(row.c8_itemped) || null,
       emission: formatDateOut(emission),
       validUntil: formatDateOut(validUntil),
       deliveryDays,

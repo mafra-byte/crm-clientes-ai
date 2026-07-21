@@ -40,6 +40,13 @@ export type ProtheusSa1Client = {
   totalSpent: number;
   lastOrderAt: string | null;
   protheusCode: string | null;
+  tradeName?: string | null;
+  address?: string | null;
+  district?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
+  personType?: string | null;
 };
 
 function sa1Table() {
@@ -163,6 +170,135 @@ export async function createSa1ClientInPg(input: CreateSa1Input) {
       totalSpent: 0,
       lastOrderAt: null as string | null,
       protheusCode: code,
+      tradeName,
+      address: address || null,
+      district: district || null,
+      city: city || null,
+      state: state || null,
+      zip: zip || null,
+      personType,
+    } satisfies ProtheusSa1Client,
+  };
+}
+
+export async function updateSa1ClientInPg(
+  input: CreateSa1Input & { code: string },
+) {
+  if (!isProtheusPgConfigured()) {
+    throw new Error("PostgreSQL do Protheus não configurado (PROTHEUS_PG_*)");
+  }
+
+  const name = input.name.trim();
+  if (!name) throw new Error("Informe o nome do cliente");
+
+  const rawCode = input.code?.trim();
+  if (!rawCode) throw new Error("Informe o código do cliente");
+
+  const table = sa1Table();
+  const db = getProtheusPool();
+  const store = (input.store?.trim() || "01").slice(0, 2).padStart(2, "0");
+  const code = rawCode.replace(/\D/g, "").padStart(6, "0").slice(-6);
+  const document = digitsOnly(input.document ?? "").slice(0, 14);
+  const personType =
+    input.personType || (document.length === 11 ? "F" : "J");
+  const tradeName = (input.tradeName?.trim() || name).slice(0, 20);
+  const email = (input.email?.trim() || "").slice(0, 30);
+  const phone = digitsOnly(input.phone ?? "").slice(0, 15);
+  const address = (input.address?.trim() || "").slice(0, 80);
+  const district = (input.district?.trim() || "").slice(0, 40);
+  const city = (input.city?.trim() || "").slice(0, 60);
+  const state = (input.state?.trim() || "").toUpperCase().slice(0, 2);
+  const zip = digitsOnly(input.zip ?? "").slice(0, 8);
+  const customerType = (input.customerType?.trim() || "F")
+    .slice(0, 1)
+    .toUpperCase();
+
+  const existing = await db.query(
+    `SELECT 1 FROM ${table}
+     WHERE d_e_l_e_t_ = ' ' AND a1_filial = $1 AND a1_cod = $2 AND a1_loja = $3
+     LIMIT 1`,
+    [pad("", 2), pad(code, 6), pad(store, 2)],
+  );
+  if (!existing.rowCount) {
+    throw new Error(`Cliente ${code}/${store} não encontrado no Protheus`);
+  }
+
+  if (document) {
+    const dupDoc = await db.query(
+      `SELECT rtrim(a1_cod) AS code, rtrim(a1_loja) AS store FROM ${table}
+       WHERE d_e_l_e_t_ = ' '
+         AND rtrim(a1_cgc) = $1
+         AND NOT (a1_cod = $2 AND a1_loja = $3)
+       LIMIT 1`,
+      [document, pad(code, 6), pad(store, 2)],
+    );
+    if (dupDoc.rows[0]?.code) {
+      throw new Error(
+        `CNPJ/CPF já cadastrado no cliente ${String(dupDoc.rows[0].code).trim()}`,
+      );
+    }
+  }
+
+  await db.query(
+    `UPDATE ${table}
+     SET a1_nome = $1,
+         a1_nreduz = $2,
+         a1_pessoa = $3,
+         a1_tipo = $4,
+         a1_end = $5,
+         a1_bairro = $6,
+         a1_est = $7,
+         a1_mun = $8,
+         a1_cep = $9,
+         a1_tel = $10,
+         a1_cgc = $11,
+         a1_email = $12
+     WHERE d_e_l_e_t_ = ' '
+       AND a1_filial = $13
+       AND a1_cod = $14
+       AND a1_loja = $15`,
+    [
+      pad(name, 50),
+      pad(tradeName, 20),
+      pad(personType, 1),
+      pad(customerType, 1),
+      pad(address, 80),
+      pad(district, 40),
+      pad(state, 2),
+      pad(city, 60),
+      pad(zip, 8),
+      pad(phone, 15),
+      pad(document, 14),
+      pad(email, 30),
+      pad("", 2),
+      pad(code, 6),
+      pad(store, 2),
+    ],
+  );
+
+  const config = getProtheusConfig();
+  return {
+    empresa: config.empresa,
+    filial: config.filial,
+    client: {
+      id: `${code}-${store}`,
+      name,
+      email: email || null,
+      phone: phone || null,
+      document: document || null,
+      store,
+      source: "protheus-live",
+      totalOrders: 0,
+      totalSpent: 0,
+      lastOrderAt: null as string | null,
+      protheusCode: code,
+      tradeName,
+      address: address || null,
+      district: district || null,
+      city: city || null,
+      state: state || null,
+      zip: zip || null,
+      personType,
     } satisfies ProtheusSa1Client,
   };
 }
@@ -177,7 +313,8 @@ export async function fetchSa1ClientsFromPg(q = ""): Promise<{
   const db = getProtheusPool();
 
   const result = await db.query<QueryResultRow>(
-    `SELECT a1_cod, a1_loja, a1_nome, a1_nreduz, a1_email, a1_tel, a1_cgc
+    `SELECT a1_cod, a1_loja, a1_nome, a1_nreduz, a1_email, a1_tel, a1_cgc,
+            a1_end, a1_bairro, a1_mun, a1_est, a1_cep, a1_pessoa
      FROM ${table}
      WHERE d_e_l_e_t_ = ' '
      ORDER BY a1_cod
@@ -202,6 +339,13 @@ export async function fetchSa1ClientsFromPg(q = ""): Promise<{
         totalSpent: 0,
         lastOrderAt: null as string | null,
         protheusCode: code || null,
+        tradeName: trim(row.a1_nreduz) || null,
+        address: trim(row.a1_end) || null,
+        district: trim(row.a1_bairro) || null,
+        city: trim(row.a1_mun) || null,
+        state: trim(row.a1_est) || null,
+        zip: trim(row.a1_cep) || null,
+        personType: trim(row.a1_pessoa) || null,
       };
     })
     .filter((client) => {
@@ -213,6 +357,8 @@ export async function fetchSa1ClientsFromPg(q = ""): Promise<{
         client.document,
         client.protheusCode,
         client.store,
+        client.tradeName,
+        client.city,
       ]
         .filter(Boolean)
         .join(" ")

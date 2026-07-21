@@ -247,3 +247,89 @@ export async function createTesInPg(input: CreateTesInput) {
     } satisfies ProtheusTes,
   };
 }
+
+export async function updateTesInPg(input: CreateTesInput & { code: string }) {
+  if (!isProtheusPgConfigured()) {
+    throw new Error("PostgreSQL do Protheus não configurado (PROTHEUS_PG_*)");
+  }
+
+  const rawCode = input.code?.trim();
+  if (!rawCode) throw new Error("Informe o código da TES");
+
+  const type = input.type === "S" ? "S" : "E";
+  const text = input.text.trim().slice(0, 20);
+  const cfop = input.cfop.replace(/\D/g, "").slice(0, 5);
+  if (!text) throw new Error("Informe o texto da TES");
+  if (cfop.length < 4) throw new Error("Informe um CFOP válido");
+
+  const config = getProtheusConfig();
+  const filial = (config.filial || "01").slice(0, 2).padStart(2, "0");
+  const table = sf4Table();
+  const db = getProtheusPool();
+  const code = rawCode.replace(/\D/g, "").slice(-3).padStart(3, "0");
+
+  const existing = await db.query(
+    `SELECT 1 FROM ${table}
+     WHERE d_e_l_e_t_ = ' '
+       AND f4_filial = $1 AND rtrim(f4_codigo) = $2
+     LIMIT 1`,
+    [pad(filial, 2), code],
+  );
+  if (!existing.rowCount) {
+    throw new Error(`TES ${code} não encontrada`);
+  }
+
+  const updatesStock = input.updatesStock !== false && type === "E";
+  const generatesDuplicate = input.generatesDuplicate !== false;
+  const calculatesIcms = input.calculatesIcms !== false;
+  const creditIcms = input.creditIcms !== false && type === "E";
+  const purpose = (input.purpose?.trim() || text).slice(0, 254);
+
+  await db.query(
+    `UPDATE ${table}
+     SET f4_tipo = $1,
+         f4_texto = $2,
+         f4_cf = $3,
+         f4_estoque = $4,
+         f4_duplic = $5,
+         f4_icm = $6,
+         f4_credicm = $7,
+         f4_lficm = $8,
+         f4_finalid = $9
+     WHERE d_e_l_e_t_ = ' '
+       AND f4_filial = $10
+       AND rtrim(f4_codigo) = $11`,
+    [
+      pad(type, 1),
+      pad(text, 20),
+      pad(cfop, 5),
+      pad(updatesStock ? "S" : "N", 1),
+      pad(generatesDuplicate ? "S" : "N", 1),
+      pad(calculatesIcms ? "S" : "N", 1),
+      pad(creditIcms ? "S" : "N", 1),
+      pad(calculatesIcms ? "S" : "N", 1),
+      pad(purpose, 254),
+      pad(filial, 2),
+      code,
+    ],
+  );
+
+  return {
+    empresa: config.empresa,
+    filial,
+    line: {
+      id: code,
+      code,
+      type,
+      text,
+      cfop,
+      updatesStock,
+      generatesDuplicate,
+      calculatesIcms,
+      creditIcms,
+      blocked: false,
+      purpose,
+      source: "protheus-pg",
+    } satisfies ProtheusTes,
+  };
+}
