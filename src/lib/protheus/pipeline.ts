@@ -87,12 +87,26 @@ export async function fetchPurchasePipeline() {
       quoteNumber = sc.quoteNumber || pc?.quoteNumber || quoteNumber;
       orderNumber = pc?.number ?? orderNumber;
       orderItem = pc?.item ?? orderItem;
-    } else if (sc.quoteNumber) {
-      stage = "quote";
-      statusLabel = "Em cotação";
-      href = "/cotacoes-compra";
-      const quote = quotes.lines.find((q) => q.number === sc.quoteNumber);
-      supplierCode = quote?.supplierCode ?? null;
+    } else {
+      const linkedQuote =
+        quotes.lines.find(
+          (q) =>
+            q.purchaseRequestNumber === sc.number &&
+            q.purchaseRequestItem === sc.item,
+        ) ||
+        (sc.quoteNumber
+          ? quotes.lines.find((q) => q.number === sc.quoteNumber)
+          : undefined);
+
+      if (linkedQuote || sc.quoteNumber) {
+        stage = "quote";
+        statusLabel = linkedQuote?.closed
+          ? "Cotação fechada (sem PC na SC)"
+          : "Em cotação";
+        href = "/cotacoes-compra";
+        quoteNumber = linkedQuote?.number || sc.quoteNumber;
+        supplierCode = linkedQuote?.supplierCode ?? null;
+      }
     }
 
     cardsById.set(id, {
