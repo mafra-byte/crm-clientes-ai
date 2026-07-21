@@ -8,6 +8,7 @@ import {
   trim,
 } from "@/lib/protheus/pg-shared";
 import { applyReceiptToStock } from "@/lib/protheus/sb2";
+import { getTesByCode } from "@/lib/protheus/sf4";
 
 export type CreateReceiptInput = {
   purchaseOrderNumber: string;
@@ -16,6 +17,7 @@ export type CreateReceiptInput = {
   unitPrice?: number;
   document?: string;
   series?: string;
+  tes?: string;
   notes?: string;
 };
 
@@ -34,6 +36,8 @@ export type ProtheusReceiptLine = {
   warehouse: string | null;
   purchaseOrderNumber: string | null;
   purchaseOrderItem: string | null;
+  tes: string | null;
+  cfop: string | null;
   emission: string | null;
   source: string;
 };
@@ -95,7 +99,8 @@ export async function fetchReceiptsFromPg(q = "") {
   const db = getProtheusPool();
   const result = await db.query<QueryResultRow>(
     `SELECT d1_doc, d1_serie, d1_item, d1_cod, d1_um, d1_quant, d1_vunit, d1_total,
-            d1_fornece, d1_loja, d1_local, d1_pedido, d1_itempc, d1_emissao
+            d1_fornece, d1_loja, d1_local, d1_pedido, d1_itempc, d1_emissao,
+            d1_tes, d1_cf
      FROM ${table}
      WHERE d_e_l_e_t_ = ' '
      ORDER BY d1_doc DESC, d1_item
@@ -124,6 +129,8 @@ export async function fetchReceiptsFromPg(q = "") {
         warehouse: trim(row.d1_local) || null,
         purchaseOrderNumber: trim(row.d1_pedido) || null,
         purchaseOrderItem: trim(row.d1_itempc) || null,
+        tes: trim(row.d1_tes) || null,
+        cfop: trim(row.d1_cf) || null,
         emission: formatDateOut(row.d1_emissao),
         source: "protheus-pg",
       } satisfies ProtheusReceiptLine;
@@ -221,6 +228,13 @@ export async function createReceiptFromPurchaseOrder(input: CreateReceiptInput) 
     .slice(-9);
   const emission = toProtheusDate();
   let itemCode = "0001";
+
+  const tesCode = (input.tes?.trim() || "001").padStart(3, "0").slice(-3);
+  const tes = await getTesByCode(tesCode);
+  if (tes.type !== "E") {
+    throw new Error(`TES ${tes.code} não é de entrada`);
+  }
+  const cfop = (tes.cfop || "1102").slice(0, 5);
 
   const client = await db.connect();
   try {
@@ -337,8 +351,8 @@ export async function createReceiptFromPurchaseOrder(input: CreateReceiptInput) 
         pad(emission, 8),
         pad(emission, 8),
         pad("N", 1),
-        pad("001", 3),
-        pad("1102", 5),
+        pad(tes.code, 3),
+        pad(cfop, 5),
       ],
     );
 
@@ -357,14 +371,16 @@ export async function createReceiptFromPurchaseOrder(input: CreateReceiptInput) 
       [quantity, pcNumber, pcItem],
     );
 
-    await applyReceiptToStock(client, {
-      filial,
-      productCode,
-      warehouse,
-      quantity,
-      unitPrice,
-      description: trim(pc.c7_descri) || productCode,
-    });
+    if (tes.updatesStock) {
+      await applyReceiptToStock(client, {
+        filial,
+        productCode,
+        warehouse,
+        quantity,
+        unitPrice,
+        description: trim(pc.c7_descri) || productCode,
+      });
+    }
 
     await client.query("COMMIT");
   } catch (error) {
@@ -392,6 +408,8 @@ export async function createReceiptFromPurchaseOrder(input: CreateReceiptInput) 
       warehouse,
       purchaseOrderNumber: pcNumber,
       purchaseOrderItem: pcItem,
+      tes: tes.code,
+      cfop,
       emission: formatDateOut(emission),
       source: "protheus-pg",
     } satisfies ProtheusReceiptLine,

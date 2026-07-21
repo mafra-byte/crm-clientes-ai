@@ -17,6 +17,8 @@ type Line = {
   supplierStore: string;
   purchaseOrderNumber: string | null;
   purchaseOrderItem: string | null;
+  tes: string | null;
+  cfop: string | null;
   emission: string | null;
 };
 
@@ -33,11 +35,19 @@ type OrderOption = {
   supplierStore: string;
 };
 
+type TesOption = {
+  code: string;
+  text: string;
+  cfop: string;
+  updatesStock: boolean;
+};
+
 type FormState = {
   orderKey: string;
   quantity: string;
   document: string;
   series: string;
+  tes: string;
 };
 
 const emptyForm: FormState = {
@@ -45,12 +55,14 @@ const emptyForm: FormState = {
   quantity: "",
   document: "",
   series: "1",
+  tes: "001",
 };
 
 export function RecebimentoView() {
   const [q, setQ] = useState("");
   const [lines, setLines] = useState<Line[]>([]);
   const [orders, setOrders] = useState<OrderOption[]>([]);
+  const [tesList, setTesList] = useState<TesOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [meta, setMeta] = useState("");
@@ -99,9 +111,11 @@ export function RecebimentoView() {
   }, [load, reloadKey]);
 
   useEffect(() => {
-    fetch("/api/purchase-orders/live")
-      .then((r) => r.json())
-      .then((data) => {
+    Promise.all([
+      fetch("/api/purchase-orders/live").then((r) => r.json()),
+      fetch("/api/tes/live?entry=1").then((r) => r.json()),
+    ])
+      .then(([data, tesData]) => {
         const open = (data.lines ?? [])
           .map(
             (l: {
@@ -114,6 +128,7 @@ export function RecebimentoView() {
               unitPrice: number;
               supplierCode: string;
               supplierStore: string;
+              closed?: boolean;
             }) => {
               const delivered = Number(l.quantityDelivered ?? 0) || 0;
               const quantity = Number(l.quantity ?? 0) || 0;
@@ -128,11 +143,35 @@ export function RecebimentoView() {
                 unitPrice: l.unitPrice,
                 supplierCode: l.supplierCode,
                 supplierStore: l.supplierStore,
+                closed: Boolean(l.closed),
               };
             },
           )
-          .filter((o: OrderOption) => o.balance > 0);
+          .filter((o: OrderOption & { closed?: boolean }) => !o.closed && o.balance > 0);
         setOrders(open);
+        const tesOptions = (tesData.lines ?? []).map(
+          (t: {
+            code: string;
+            text: string;
+            cfop: string;
+            updatesStock: boolean;
+          }) => ({
+            code: t.code,
+            text: t.text,
+            cfop: t.cfop,
+            updatesStock: t.updatesStock,
+          }),
+        );
+        setTesList(tesOptions);
+        if (tesOptions.length) {
+          setForm((prev) => {
+            const stillValid = tesOptions.some((t: TesOption) => t.code === prev.tes);
+            if (stillValid) return prev;
+            const preferred =
+              tesOptions.find((t: TesOption) => t.code === "001") || tesOptions[0];
+            return { ...prev, tes: preferred.code };
+          });
+        }
       })
       .catch(() => {
         /* optional */
@@ -172,6 +211,7 @@ export function RecebimentoView() {
           quantity: Number(form.quantity),
           document: form.document.trim() || undefined,
           series: form.series.trim() || "1",
+          tes: form.tes || "001",
         }),
       });
       const data = await res.json();
@@ -180,7 +220,7 @@ export function RecebimentoView() {
         return;
       }
       setSaveMsg(
-        `NF ${data.line?.document}/${data.line?.series} gravada · ${data.line?.quantity} un.`,
+        `NF ${data.line?.document}/${data.line?.series} · TES ${data.line?.tes || form.tes} · ${data.line?.quantity} un.`,
       );
       setForm(emptyForm);
       setShowForm(false);
@@ -269,6 +309,26 @@ export function RecebimentoView() {
             />
           </label>
           <label className="space-y-1 text-sm sm:col-span-2">
+            <span className="text-[var(--muted)]">TES (entrada)</span>
+            <select
+              value={form.tes}
+              onChange={(e) => setForm({ ...form, tes: e.target.value })}
+              className="w-full rounded-lg border border-[var(--line)] px-3 py-2"
+              required
+            >
+              {tesList.length === 0 ? (
+                <option value="001">001 — padrão</option>
+              ) : (
+                tesList.map((t) => (
+                  <option key={t.code} value={t.code}>
+                    {t.code} · {t.text} · CFOP {t.cfop}
+                    {t.updatesStock ? " · estoque" : ""}
+                  </option>
+                ))
+              )}
+            </select>
+          </label>
+          <label className="space-y-1 text-sm sm:col-span-2">
             <span className="text-[var(--muted)]">Nº documento (opcional)</span>
             <input
               value={form.document}
@@ -306,6 +366,7 @@ export function RecebimentoView() {
               <th className="px-3 py-2">Emissão</th>
               <th className="px-3 py-2">Fornecedor</th>
               <th className="px-3 py-2">Produto</th>
+              <th className="px-3 py-2">TES</th>
               <th className="px-3 py-2">Qtd</th>
               <th className="px-3 py-2">PC</th>
               <th className="px-3 py-2">Total</th>
@@ -314,13 +375,13 @@ export function RecebimentoView() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-3 py-8 text-[var(--muted)]">
+                <td colSpan={8} className="px-3 py-8 text-[var(--muted)]">
                   Carregando…
                 </td>
               </tr>
             ) : lines.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-3 py-8 text-[var(--muted)]">
+                <td colSpan={8} className="px-3 py-8 text-[var(--muted)]">
                   Nenhum recebimento em sf1990/sd1990.
                 </td>
               </tr>
@@ -337,6 +398,10 @@ export function RecebimentoView() {
                     {r.supplierCode}/{r.supplierStore}
                   </td>
                   <td className="px-3 py-2">{r.productCode}</td>
+                  <td className="px-3 py-2 text-[var(--muted)]">
+                    {r.tes || "—"}
+                    {r.cfop ? ` · ${r.cfop}` : ""}
+                  </td>
                   <td className="px-3 py-2">
                     {r.quantity} {r.unit || ""}
                   </td>

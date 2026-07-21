@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
         : body.serie
           ? String(body.serie)
           : undefined,
+      tes: body.tes ? String(body.tes) : undefined,
       notes: body.notes ? String(body.notes) : undefined,
     });
     return NextResponse.json({ ok: true, source: "protheus-pg", ...created });

@@ -98,3 +98,21 @@ python3 scripts/seed_sb2_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus
 ```
 
 Portal: `/estoque` → `GET /api/stock/live`.
+
+## TES SF4
+
+Tabela física **`SF4990`**. Define CFOP e se a NF de entrada atualiza estoque (`F4_ESTOQUE`).
+
+```bash
+export PGPASSWORD=Protheus.123
+python3 scripts/seed_sf4_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus -v ON_ERROR_STOP=1
+```
+
+| Código | Uso | CFOP | Estoque |
+|--------|-----|------|---------|
+| 001 | Compra c/estoque | 1102 | Sim |
+| 002 | Compra s/estoque | 1102 | Não |
+| 003 | Uso/consumo | 1556 | Não |
+| 004 | Ativo imobilizado | 1551 | Não |
+
+Portal: `/tes` · no recebimento a TES é escolhida e gravada em `D1_TES`/`D1_CF`.
