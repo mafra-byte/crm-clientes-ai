@@ -88,3 +88,20 @@ Login WebApp (sandbox):
 - REST `8081`: escuta (comportamento OAuth/timeouts = tema separado)  
 - Casamax / Davi / agendasync: **200** intactos  
 - Portal CRM PM2 `protheus`: online  
+
+## Erro: “Sistema operacional não homologado” (Ubuntu)
+
+TDN: [Validações de Banco e SO — 12.1.2410](https://tdn.totvs.com/pages/releaseview.action?pageId=848821627).
+
+No Ubuntu o Protheus bloqueia módulos se o tipo de ambiente **não** for **Desenvolvimento**.  
+Tipo fica em `SYS_APP_PARAM` / `TypeEnvironment` (valor criptografado) e se altera no Configurador (**CFGA750**).
+
+### Lab no `213` (temporário)
+
+1. Spoof de identidade OL8 só em `/etc/os-release` (arquivo real; `/usr/lib/os-release` permanece Ubuntu).  
+2. Entrar no **Configurador** (`SIGACFG`) e marcar tipo **Desenvolvimento**.  
+3. Restaurar Ubuntu: `/totvs/protheus_2410/tools/restore_ubuntu_os_release.sh` e `systemctl restart protheus-appserver`.  
+4. Com DEV gravado, a validação de SO deixa de aplicar (TDN).
+
+**Não** use spoof em produção. Caminho correto TOTVS: Oracle Linux 8 / RHEL 8.  
+**Não** reinicie nginx/Docker/Casamax/Davi para isso.
