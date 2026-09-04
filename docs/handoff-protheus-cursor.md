@@ -11,12 +11,18 @@ Escopo do portal: [`ESCOPO_FUNCIONAL_PORTAL.md`](./ESCOPO_FUNCIONAL_PORTAL.md).
 Não tocar sem snapshot / plano explícito:
 
 - Casamax, Davi caminhões, noite-backend/frontend, agendamento
-- License Server Virtual (`/totvs/totvslicensevirtual`)
+- License Server Virtual (`/totvs/totvslicensevirtual`) — só restart controlado do unit `protheus-license`
 - PostgreSQL dados empresa 99 já populados
 - Portal PM2 `protheus` em `/var/www/protheus` (portal CRM)
+- Docker backends `3003` / `3050–3053` / `3333` e nginx dos outros vhosts
 
 Host: `213.199.51.121` · Portal: `https://protheus.ccskf.net`  
 AppServer: `/totvs/protheus_2410/protheus/bin/appserver`
+
+### Ressurreição 2026-09-04
+
+ERP religado (License → DBAccess → AppServer). WebApp `4321` OK.  
+Detalhe operacional: [`RESSUSCITAR_PROTHEUS.md`](./RESSUSCITAR_PROTHEUS.md).
 
 ## Passo 1 — religar REST (EXECUTADO)
 

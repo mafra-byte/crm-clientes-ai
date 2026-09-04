@@ -9,6 +9,9 @@ systemctl status protheus-dbaccess protheus-appserver protheus-license
 systemctl restart protheus-dbaccess protheus-appserver protheus-license
 ```
 
+Se o ERP estiver parado (ou WebApp 502): ver [`RESSUSCITAR_PROTHEUS.md`](./RESSUSCITAR_PROTHEUS.md).  
+**Nunca** reiniciar nginx/docker/PM2 dos outros portais (Casamax, Davi, etc.) para “consertar” o Protheus.
+
 | Serviço | Porta | Função |
 |---------|-------|--------|
 | DBAccess | 7890 | Ponte ODBC → PostgreSQL |
