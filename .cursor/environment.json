@@ -1,0 +1,11 @@
+{
+  "name": "Protheus CRM (Next.js)",
+  "install": "[ -f .env ] || cp .env.example .env; npm install; npx prisma migrate deploy; npm run db:seed",
+  "terminals": [
+    {
+      "name": "next-dev",
+      "command": "npm run dev"
+    }
+  ],
+  "ports": [3000]
+}
