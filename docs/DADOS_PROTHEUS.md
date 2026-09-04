@@ -1,0 +1,124 @@
+## Dados no Protheus (não só no portal)
+
+Os clientes de demo comerciais estão na tabela física **`SA1990`** do PostgreSQL
+(`protheus` / empresa 99), criados a partir do dicionário SX3:
+
+```bash
+export PGPASSWORD=Protheus.123
+python3 scripts/seed_sa1_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus -v ON_ERROR_STOP=1
+# ou no servidor: /totvs/protheus_2410/tools/seed_sa1990_demo.sql
+```
+
+O portal, com `PROTHEUS_PG_*` no `.env`, lista e **cria** clientes em
+`/clientes` → **Novo cliente** (`POST /api/clients/live`), gravando na `SA1990`.
+
+## Fornecedores SA2
+
+Tabela física **`SA2990`**:
+
+```bash
+export PGPASSWORD=Protheus.123
+python3 scripts/seed_sa2_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus -v ON_ERROR_STOP=1
+```
+
+Portal: `/fornecedores` → listar e **Novo fornecedor** (`POST /api/suppliers/live`).
+
+## Produtos SB1
+
+Tabela física **`SB1990`**:
+
+```bash
+export PGPASSWORD=Protheus.123
+python3 scripts/seed_sb1_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus -v ON_ERROR_STOP=1
+```
+
+Portal: `/produtos` → listar e **Novo produto** (`POST /api/products/live`).
+
+## Solicitação de compras SC1
+
+Tabela física **`SC1990`**:
+
+```bash
+export PGPASSWORD=Protheus.123
+python3 scripts/seed_sc1_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus -v ON_ERROR_STOP=1
+```
+
+Portal: `/solicitacoes-compra` → listar e **Nova solicitação** (`POST /api/purchase-requests/live`).
+
+## Cotação de compras SC8
+
+Tabela física **`SC8990`**:
+
+```bash
+export PGPASSWORD=Protheus.123
+python3 scripts/seed_sc8_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus -v ON_ERROR_STOP=1
+```
+
+Portal: `/cotacoes-compra` → listar e **Nova cotação** (`POST /api/purchase-quotes/live`).
+
+## Pedido de compras SC7
+
+Tabela física **`SC7990`**:
+
+```bash
+export PGPASSWORD=Protheus.123
+python3 scripts/seed_sc7_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus -v ON_ERROR_STOP=1
+```
+
+Portal: `/pedidos-compra` → listar e **Novo pedido** (`POST /api/purchase-orders/live`).
+
+## Recebimento SF1 / SD1
+
+Tabelas físicas **`SF1990`** (cabeçalho) e **`SD1990`** (itens):
+
+```bash
+export PGPASSWORD=Protheus.123
+python3 scripts/seed_sf1_sd1_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus -v ON_ERROR_STOP=1
+```
+
+Portal: `/recebimento` → listar e **Novo recebimento** a partir do PC SC7 (`POST /api/purchase-receipts/live`). Atualiza `C7_QUJE` e, ao completar a quantidade, `C7_ENCER='E'`.
+
+## Encadeamento de fechamento
+
+| Ação | Fecha documento | Campos |
+|------|-----------------|--------|
+| Cotação a partir da SC | SC1 | `C1_COTACAO` |
+| Pedido a partir da cotação | SC8 (+ SC1) | `C8_NUMPED`/`C8_ITEMPED`; `C1_PEDIDO`/`C1_ITEMPED`/`C1_QUJE` |
+| NF entrada (recebimento) | SC7 | `C7_QUJE` (+ `C7_ENCER` se saldo zero) |
+
+Mapa Kanban do processo: portal `/fluxo-compras` (`GET /api/purchase-pipeline/live`).
+
+## Estoque SB2
+
+Tabela física **`SB2990`** (saldo por produto/armazém). O recebimento (SF1/SD1) atualiza `B2_QATU` / `B2_VATU1` / `B2_CM1`.
+
+```bash
+export PGPASSWORD=Protheus.123
+python3 scripts/seed_sb2_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus -v ON_ERROR_STOP=1
+```
+
+Portal: `/estoque` → `GET /api/stock/live`.
+
+## TES SF4 — integração no fluxo
+
+A TES (SF4) é o cadastro mestre. Integração Protheus:
+
+1. **Produto SB1** → `B1_TE` (TES padrão de entrada) valida em SF4  
+2. **Pedido SC7** → `C7_TES` herda de `B1_TE` (ou override)  
+3. **NF SD1** → `D1_TES`/`D1_CF` herdam de `C7_TES` → SF4 (`F4_CF`, `F4_ESTOQUE`)
+
+Ordem de resolução no recebimento: override na tela → `C7_TES` → `B1_TE` → `001`.
+
+```bash
+export PGPASSWORD=Protheus.123
+python3 scripts/seed_sf4_protheus.py | psql -h 127.0.0.1 -U protheus -d protheus -v ON_ERROR_STOP=1
+```
+
+| Código | Uso | CFOP | Estoque |
+|--------|-----|------|---------|
+| 001 | Compra c/estoque | 1102 | Sim |
+| 002 | Compra s/estoque | 1102 | Não |
+| 003 | Uso/consumo | 1556 | Não |
+| 004 | Ativo imobilizado | 1551 | Não |
+
+Portal: `/tes` · no recebimento a TES é escolhida e gravada em `D1_TES`/`D1_CF`.

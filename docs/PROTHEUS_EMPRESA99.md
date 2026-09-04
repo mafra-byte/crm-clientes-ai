@@ -1,0 +1,155 @@
+# Protheus ERP 12.1.2410 — Empresa 99 (Linux)
+
+Instalação no servidor Contabo (`213.199.51.121`) com grupo de empresas **99** (ambiente de testes). Isolado do Casamax/Davi.
+
+## Serviços (systemd)
+
+```bash
+systemctl status protheus-dbaccess protheus-appserver protheus-license
+systemctl restart protheus-dbaccess protheus-appserver protheus-license
+```
+
+Se o ERP estiver parado (ou WebApp 502): ver [`RESSUSCITAR_PROTHEUS.md`](./RESSUSCITAR_PROTHEUS.md).  
+**Nunca** reiniciar nginx/docker/PM2 dos outros portais (Casamax, Davi, etc.) para “consertar” o Protheus.
+
+| Serviço | Porta | Função |
+|---------|-------|--------|
+| DBAccess | 7890 | Ponte ODBC → PostgreSQL |
+| AppServer TCP / MPP | 1234 | SmartClient + TFace `/app-root` |
+| WebApp | 4321 | SmartClient browser |
+| REST 2.0 | 8081 | APIs `/rest` |
+| License Server Virtual | 5555 (listener), 2234 (TCP), 8020 (monitor) | Licenciamento local |
+
+Portas ERP/License bloqueadas de fora via iptables; acesso público só via nginx HTTPS.
+
+## URLs públicas
+
+- Portal CRM (API): https://protheus.ccskf.net/login
+- CRM: https://protheus.ccskf.net
+- Atalho WebApp: https://protheus.ccskf.net/abrir-protheus.html
+- WebApp (Configurador): https://protheus.ccskf.net/webapp/?StartProg=SIGACFG&Env=ENVIRONMENT
+- REST (login): https://protheus.ccskf.net/rest/
+- License monitor (localhost): http://127.0.0.1:8020/
+
+### Portal CRM via API
+
+1. Login em `/login` (`Admin` / `Protheus.123`).
+2. Com `PROTHEUS_DEMO_MODE=true` + `npm run db:seed`: painel/pedidos prontos no portal.
+3. Clientes **no Protheus**: tabela `SA1990` (ver `docs/DADOS_PROTHEUS.md` / `scripts/seed_sa1_protheus.py`).
+4. Portal lê SA1 via PostgreSQL (`PROTHEUS_PG_*`) em `/clientes` → Ao vivo.
+5. Cadastros seguintes: fornecedores → produtos → plano de contas.
+6. WebApp fica só para configuração/ERP (SIGACFG), não como acesso principal.
+
+### Nginx (HTTPS / acesso remoto)
+
+O WebApp atrás do nginx HTTPS precisa destes ajustes (só no site `protheus.ccskf.net`):
+
+1. **CSP `upgrade-insecure-requests`** em `/webapp/` — o AppServer manda o iframe TFACE como `http://host:443/app-root/...`; sem isso o Chrome/Safari bloqueia (tela branca / Mixed Content).
+2. **`proxy_set_header Origin ""`** em `/app-root/` — com header `Origin` (scripts `type=module`) o AppServer responde **401** nos JS do login. No nginx, string vazia **omite** o header (comportamento desejado aqui).
+3. **`proxy_set_header Origin $scheme://$host;`** em `/webapp/` — o AppServer **fecha o WebSocket** se o header `Origin` estiver ausente. Não use `Origin ""` em `/webapp/`: o nginx omite o header e o cliente cai em “Falha na comunicação!” / 502 `upstream prematurely closed connection`.
+4. **WebSocket**: `proxy_http_version 1.1` + `Upgrade` / `Connection $connection_upgrade`, `proxy_buffering off` e timeouts longos em `/webapp/`.
+
+Sintoma clássico do item 3: `POST .../start` retorna **200**, mas `GET .../ws` via HTTPS volta **502**.
+
+No hotel/Wi‑Fi instável: preferir **4G/hotspot**, Chrome anônimo, e esperar o primeiro **Entrar** (pode ficar em “Carregando...” vários minutos enquanto cria o dicionário `SX*990` da empresa 99).
+
+### AppServer (estabilidade WebApp)
+
+- Definir `RpoCustom=/totvs/protheus_2410/protheus/bin/appserver/custom.rpo` no `[environment]` para evitar flood de `RpoCustom Key not defined`.
+- Systemd: `StandardOutput=null` / `StandardError=null` e `LimitSTACK=infinity` no drop-in de `protheus-appserver`.
+- Se o Job REST (`HTTPJOB`) disparar `Ctree Error - ctThrdAttach failed - Error: 738`, desabilitar temporariamente `Jobs=HTTPJOB` / `HTTPV11 Enable=0` — não impede o WebApp.
+
+## Banco
+
+- PostgreSQL: database/user `protheus` / senha `Protheus.123`
+- Encoding `LATIN1`, collation/ctype `C`
+- ODBC DSN isolado: `/totvs/protheus_2410/odbc/` (`ODBCINI` / `ODBCSYSINI`)
+- Driver: PostgreSQL **ANSI** (`psqlodbca.so`) + `ODBC30=1` no `dbaccess.ini`
+- ClientLibrary: `/usr/lib/x86_64-linux-gnu/libodbc.so.2`
+
+### TOP_FIELD (crítico)
+
+O DBAccess lê `FIELD_PREC` / `FIELD_DEC` com `FieldAsPChar`. Se essas colunas forem `smallint`, o thread cai com:
+
+`Invalid Null ContentPrt on FieldAsPChar(4)` → `NO CONNECTION` no `FWTBLCREATE`.
+
+Schema correto (script no servidor: `/totvs/protheus_2410/tools/ensure_top_field.sql`):
+
+```sql
+CREATE TABLE public.TOP_FIELD (
+  FIELD_TABLE varchar(50) NOT NULL,
+  FIELD_NAME  varchar(50) NOT NULL,
+  FIELD_TYPE  char(1) NOT NULL,
+  FIELD_PREC  varchar(4) NOT NULL,
+  FIELD_DEC   varchar(4) NOT NULL
+);
+CREATE UNIQUE INDEX TOP_FIELDI ON public.TOP_FIELD (FIELD_TABLE, FIELD_NAME);
+```
+
+Deixar o DBAccess criar as demais `TOP_*` no `InitialCheckUp`. Não inventar stubs `SYS_*`.
+
+### Tabela física vs dicionário (SX2/SX3)
+
+Comportamento padrão do Protheus (confirmado na Central TOTVS / consultores):
+
+1. O **Configurador grava só o dicionário** (`SX2`, `SX3`, `SIX`).
+2. A **tabela física no SQL só nasce no primeiro acesso** (`DbSelectArea` / `CheckFile` / `FWTBLCREATE`).
+3. Se a estrutura está ok no SX2/SX3 mas a física está inconsistente: **dropar a tabela no banco** e reabrir a rotina — o Protheus **recria do zero** com owner/TOP corretos.
+
+**Não** criar `SX*990` “na mão” (nem `IDENTITY`, nem `TOP_FIELD` inventado para campos `C`). Isso gerou `permission denied` / `invalid conversion` na SX5. Fluxo correto: garantir SX2+SX3(+SIX) → `DROP TABLE` da física se estiver errada → deixar o SIGACFG recriar.
+
+Fonte oficial do dicionário: `protheus_data/systemload/sxsbra.txt` (Dicionário Completo BR). Se um alias no SX3 foi montado manualmente (ex.: SX5), **reaplicar os campos a partir do SXSBRA** e dropar a física para o Protheus recriar. Não inventar SX3 “de cabeça”.
+
+## Paths
+
+- AppServer: `/totvs/protheus_2410/protheus/bin/appserver`
+- Data: `/totvs/protheus_2410/protheus_data`
+- DBAccess: `/totvs/protheus_2410/dbaccess`
+- RPO: `/totvs/protheus_2410/protheus/apo/tttm120.rpo`
+- License Server: `/totvs/totvslicensevirtual/`
+
+## Empresa 99 — estado
+
+| Campo | Valor |
+|-------|-------|
+| Grupo / código | `99` |
+| Filial | `01` |
+| Nome empresa | `TESTE` |
+| Nome filial | `MATRIZ` |
+| SpecialKey AppServer | `EMPRESA99` |
+| StartSysInDB | `1` |
+
+License Server Virtual em `[LICENSECLIENT] 127.0.0.1:5555`. Para empresa 99 de teste **não é necessário TOTVS ID**.
+
+## Login Admin (PO UI / Protheus Séries)
+
+Na interface nova (PO UI), o botão **Entrar** só habilita com senha preenchida.
+
+1. Primeiro acesso: usuário `Admin`, senha **em branco** → digitar um **espaço** no campo senha (como nos vídeos Protheus Séries / TDN PO UI).
+2. O sistema abre **Alterar senha** (usuário `Administrador`).
+3. Senha atual: espaço; nova senha: a desejada (sandbox: `Protheus.123`).
+4. Em **session-settings**: Grupo `99` / Filial `01` / Ambiente Configurador → **Entrar**.
+
+Credenciais CRM (`.env` em `/var/www/protheus`):
+
+- `PROTHEUS_USERNAME=Admin`
+- `PROTHEUS_PASSWORD=Protheus.123`
+- `PROTHEUS_EMPRESA=99`
+- `PROTHEUS_FILIAL=01`
+
+## Próximos passos opcionais
+
+1. No **primeiro** Entrar após bootstrap, aguardar a carga do dicionário (`SX3990` etc.) — a UI fica em “Carregando...”; não fechar a aba.
+2. Em SIGACFG: Ambiente → Base de Dados → Atualizar (se ainda faltar algo no SX).
+3. Configurar REST OAuth / rotas de clientes e pedidos conforme APIs disponíveis.
+4. Testar sync no CRM: https://protheus.ccskf.net → Protheus.
+
+Scripts de automação no servidor: `/totvs/protheus_2410/tools/`.
+
+## Referências
+
+- TDN: Nova interface PO UI (senha em branco = digitar espaço)
+- TDN: StartSysInDB / dicionário no banco
+- TDN: ODBC PostgreSQL Linux (ANSI + ByteaAsLongVarBinary etc.)
+- Central TOTVS: base de teste grupo 99 (`01 - MATRIZ`)
+- Protheus Séries (YouTube): primeiro login Admin + espaço
